@@ -1,0 +1,1051 @@
+     1→'use client';
+     2→
+     3→import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  AlertTriangle,
+     7→  Eye,
+     8→  Bus,
+     9→  ArrowRightLeft,
+    10→  Send,
+    11→  Radio,
+    12→  Gauge,
+    13→  Users,
+    14→  Activity,
+    15→  Volume2,
+    16→  VolumeX,
+    17→  Wrench,
+    18→  UserX,
+    19→  Car,
+    20→  Navigation,
+    21→  MapPin,
+    22→  Clock,
+    23→  ShieldCheck,
+    24→  CheckCircle2,
+    25→  Route as RouteIcon,
+    26→} from 'lucide-react';
+    27→import { toast } from 'sonner';
+    28→
+    29→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    30→import { Badge } from '@/components/ui/badge';
+    31→import { Button } from '@/components/ui/button';
+    32→import {
+    33→  Select,
+    34→  SelectContent,
+    35→  SelectItem,
+    36→  SelectTrigger,
+    37→  SelectValue,
+    38→} from '@/components/ui/select';
+    39→import { ScrollArea } from '@/components/ui/scroll-area';
+    40→import {
+    41→  routes,
+    42→  getIdleVehicles,
+    43→  getVehicle,
+    44→  type Route,
+    45→  type Vehicle,
+    46→  type EmergencyEvent,
+    47→  type EmergencyType,
+    48→  emergencyEvents as initialEmergencies,
+    49→  trafficZones,
+    50→  mapNodes,
+    51→  calculateSafestRoute,
+    52→  generateRandomEmergency,
+    53→} from '@/lib/mock-data';
+    54→import { playAlertSound, setMuted, getMuted } from '@/lib/alert-sound';
+    55→
+    56→// ---- Types ----
+    57→interface RouteStatus {
+    58→  routeId: string;
+    59→  routeName: string;
+    60→  congestionIndex: string;
+    61→  utilizationPct: number;
+    62→  currentDemand: number;
+    63→  totalCapacity: number;
+    64→  activeVehicles: string[];
+    65→  vehicleCount: number;
+    66→  routeColor: string;
+    67→}
+    68→
+    69→interface FleetAlert {
+    70→  type: 'OVERCROWDING' | 'DROWSINESS' | 'PUNCTURE' | 'TRAFFIC_JAM' | 'DRIVER_UNAVAILABLE' | 'BREAKDOWN' | string;
+    71→  routeId?: string;
+    72→  routeName?: string;
+    73→  vehicleId?: string;
+    74→  driverName?: string;
+    75→  demand?: number;
+    76→  earRatio?: number;
+    77→  message: string;
+    78→  timestamp: string;
+    79→}
+    80→
+    81→interface FleetStatusResponse {
+    82→  success: boolean;
+    83→  routes: RouteStatus[];
+    84→  idleVehicles: string[];
+    85→  alerts: FleetAlert[];
+    86→  totalVehicles: number;
+    87→  activeVehicles: number;
+    88→  timestamp: string;
+    89→}
+    90→
+    91→// ---- Helpers ----
+    92→function demandColor(demand: number): string {
+    93→  if (demand > 85) return '#ef4444';
+    94→  if (demand >= 50) return '#f59e0b';
+    95→  return '#22c55e';
+    96→}
+    97→
+    98→function demandLabel(demand: number): string {
+    99→  if (demand > 85) return 'Critical';
+   100→  if (demand >= 50) return 'Moderate';
+   101→  return 'Normal';
+   102→}
+   103→
+   104→function formatTime(iso: string): string {
+   105→  try {
+   106→    const d = new Date(iso);
+   107→    return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+   108→  } catch {
+   109→    return iso;
+   110→  }
+   111→}
+   112→
+   113→function formatTimeShort(iso: string): string {
+   114→  try {
+   115→    const d = new Date(iso);
+   116→    const now = new Date();
+   117→    const diffMs = now.getTime() - d.getTime();
+   118→    const diffMin = Math.floor(diffMs / 60000);
+   119→    if (diffMin < 1) return 'Just now';
+   120→    if (diffMin < 60) return `${diffMin}m ago`;
+   121→    return `${Math.floor(diffMin / 60)}h ago`;
+   122→  } catch {
+   123→    return iso;
+   124→  }
+   125→}
+   126→
+   127→function emergencyTypeInfo(type: EmergencyType) {
+   128→  switch (type) {
+   129→    case 'PUNCTURE':
+   130→      return { label: 'PUNCTURE', icon: Car, color: '#ef4444', bg: 'bg-red-500/15 border-red-500/40 text-red-400' };
+   131→    case 'TRAFFIC_JAM':
+   132→      return { label: 'TRAFFIC JAM', icon: Activity, color: '#f59e0b', bg: 'bg-amber-500/15 border-amber-500/40 text-amber-400' };
+   133→    case 'DRIVER_UNAVAILABLE':
+   134→      return { label: 'DRIVER DOWN', icon: UserX, color: '#f97316', bg: 'bg-orange-500/15 border-orange-500/40 text-orange-400' };
+   135→    case 'BREAKDOWN':
+   136→      return { label: 'BREAKDOWN', icon: Wrench, color: '#ef4444', bg: 'bg-red-500/15 border-red-500/40 text-red-400' };
+   137→  }
+   138→}
+   139→
+   140→// ---- Safest Route Mini-Map ----
+   141→function SafestRouteMap({
+   142→  emergency,
+   143→  selectedVehicle,
+   144→}: {
+   145→  emergency: EmergencyEvent;
+   146→  selectedVehicle: Vehicle | undefined;
+   147→}) {
+   148→  const vehicleNode = mapNodes.find(n => n.id === 'ST_01') ?? { x: 200, y: 280 };
+   149→  const routeData = useMemo(() => {
+   150→    const vNode = mapNodes.find(n => n.name.includes('Central') || n.name.includes('Depot'));
+   151→    const fromX = vNode?.x ?? 200;
+   152→    const fromY = vNode?.y ?? 280;
+   153→    return calculateSafestRoute(fromX, fromY, emergency.mapX, emergency.mapY);
+   154→  }, [emergency.mapX, emergency.mapY]);
+   155→
+   156→  const hasAvoidedZones = routeData.avoidedZones.length > 0;
+   157→  const timeSaved = routeData.directTime - routeData.safeTime;
+   158→
+   159→  return (
+   160→    <div className="relative w-full aspect-[16/10] rounded-lg overflow-hidden border border-white/5">
+   161→      <svg viewBox="0 0 650 400" className="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+   162→        <defs>
+   163→          <filter id="emg-glow" x="-50%" y="-50%" width="200%" height="200%">
+   164→            <feGaussianBlur stdDeviation="6" result="blur" />
+   165→            <feMerge>
+   166→              <feMergeNode in="blur" />
+   167→              <feMergeNode in="SourceGraphic" />
+   168→            </feMerge>
+   169→          </filter>
+   170→          <pattern id="emg-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+   171→            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#161b22" strokeWidth={0.5} />
+   172→          </pattern>
+   173→        </defs>
+   174→
+   175→        {/* Background */}
+   176→        <rect width="650" height="400" fill="#0d1117" />
+   177→        <rect width="650" height="400" fill="url(#emg-grid)" opacity={0.5} />
+   178→
+   179→        {/* Traffic zones (red danger areas) */}
+   180→        {trafficZones.map((zone, i) => {
+   181→          const severityColor = zone.severity === 'high' ? '#ef4444' : zone.severity === 'medium' ? '#f59e0b' : '#65a30d';
+   182→          const isAvoided = routeData.avoidedZones.includes(zone.name);
+   183→          return (
+   184→            <g key={i}>
+   185→              <circle
+   186→                cx={zone.mapX} cy={zone.mapY}
+   187→                r={zone.radius}
+   188→                fill={severityColor}
+   189→                opacity={isAvoided ? 0.12 : 0.06}
+   190→                stroke={severityColor}
+   191→                strokeWidth={isAvoided ? 2 : 1}
+   192→                strokeDasharray={isAvoided ? '6 3' : '3 3'}
+   193→                strokeOpacity={isAvoided ? 0.6 : 0.3}
+   194→              />
+   195→              {isAvoided && (
+   196→                <text x={zone.mapX} y={zone.mapY + 4} textAnchor="middle" fill={severityColor} fontSize={7} fontFamily="system-ui" fontWeight={600}>
+   197→                  AVOID
+   198→                </text>
+   199→              )}
+   200→            </g>
+   201→          );
+   202→        })}
+   203→
+   204→        {/* Direct route (red, dashed) */}
+   205→        {hasAvoidedZones && (
+   206→          <polyline
+   207→            points={routeData.directWaypoints.map(([x, y]) => `${x},${y}`).join(' ')}
+   208→            fill="none"
+   209→            stroke="#ef4444"
+   210→            strokeWidth={2}
+   211→            strokeDasharray="8 4"
+   212→            opacity={0.4}
+   213→          />
+   214→        )}
+   215→
+   216→        {/* Safest route (green, solid, animated) */}
+   217→        <polyline
+   218→          points={routeData.safeWaypoints.map(([x, y]) => `${x},${y}`).join(' ')}
+   219→          fill="none"
+   220→          stroke="#22c55e"
+   221→          strokeWidth={3}
+   222→          strokeLinecap="round"
+   223→          strokeLinejoin="round"
+   224→          opacity={0.9}
+   225→        />
+   226→        {/* Glow for safe route */}
+   227→        <polyline
+   228→          points={routeData.safeWaypoints.map(([x, y]) => `${x},${y}`).join(' ')}
+   229→          fill="none"
+   230→          stroke="#22c55e"
+   231→          strokeWidth={8}
+   232→          strokeLinecap="round"
+   233→          strokeLinejoin="round"
+   234→          opacity={0.15}
+   235→          filter="url(#emg-glow)"
+   236→        />
+   237→
+   238→        {/* Origin point (bus depot) */}
+   239→        <circle cx={routeData.safeWaypoints[0]?.[0]} cy={routeData.safeWaypoints[0]?.[1]} r={7} fill="#14b8a6" stroke="#fff" strokeWidth={2} />
+   240→        <text x={(routeData.safeWaypoints[0]?.[0] ?? 0) + 12} y={(routeData.safeWaypoints[0]?.[1] ?? 0) + 4} fill="#14b8a6" fontSize={8} fontFamily="system-ui" fontWeight={600}>
+   241→          DEPOT
+   242→        </text>
+   243→
+   244→        {/* Emergency location (pulsing red) */}
+   245→        <motion.circle
+   246→          cx={emergency.mapX}
+   247→          cy={emergency.mapY}
+   248→          r={10}
+   249→          fill="#ef4444"
+   250→          stroke="#fff"
+   251→          strokeWidth={2}
+   252→          filter="url(#emg-glow)"
+   253→          animate={{ r: [10, 16, 10], opacity: [1, 0.5, 1] }}
+   254→          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+   255→        />
+   256→        <text x={emergency.mapX + 16} y={emergency.mapY + 4} fill="#ef4444" fontSize={8} fontFamily="system-ui" fontWeight={700}>
+   257→          SOS
+   258→        </text>
+   259→
+   260→        {/* Station dots (subtle) */}
+   261→        {mapNodes.map((node) => (
+   262→          <circle key={node.id} cx={node.x} cy={node.y} r={3} fill="#334155" stroke="#475569" strokeWidth={0.5} />
+   263→        ))}
+   264→
+   265→        {/* Legend */}
+   266→        <g transform="translate(12, 320)">
+   267→          <rect x={0} y={0} width={220} height={70} rx={8} fill="#0d1117" stroke="#21262d" strokeWidth={1} opacity={0.92} />
+   268→          {hasAvoidedZones && (
+   269→            <g transform="translate(12, 18)">
+   270→              <line x1={0} y1={0} x2={20} y2={0} stroke="#ef4444" strokeWidth={2} strokeDasharray="6 3" opacity={0.6} />
+   271→              <text x={26} y={3} fill="#94a3b8" fontSize={8} fontFamily="system-ui">Direct (traffic blocked)</text>
+   272→            </g>
+   273→          )}
+   274→          <g transform="translate(12, 36)">
+   275→            <line x1={0} y1={0} x2={20} y2={0} stroke="#22c55e" strokeWidth={3} />
+   276→            <text x={26} y={3} fill="#94a3b8" fontSize={8} fontFamily="system-ui">Safest Route (no traffic)</text>
+   277→          </g>
+   278→          {hasAvoidedZones && (
+   279→            <g transform="translate(12, 54)">
+   280→              <circle cx={6} cy={-2} r={5} fill="#ef4444" opacity={0.15} stroke="#ef4444" strokeWidth={1} strokeDasharray="3 2" />
+   281→              <text x={26} y={1} fill="#94a3b8" fontSize={8} fontFamily="system-ui">Traffic zone (avoided)</text>
+   282→            </g>
+   283→          )}
+   284→        </g>
+   285→      </svg>
+   286→
+   287→      {/* Route comparison overlay */}
+   288→      <div className="absolute top-2 right-2 flex flex-col gap-1">
+   289→        {hasAvoidedZones && (
+   290→          <div className="rounded-md bg-green-500/15 border border-green-500/30 px-2 py-1 text-[10px] font-semibold text-green-400">
+   291→            Safest: {routeData.safeTime} min
+   292→          </div>
+   293→        )}
+   294→        {hasAvoidedZones && (
+   295→          <div className="rounded-md bg-red-500/15 border border-red-500/30 px-2 py-1 text-[10px] font-semibold text-red-400 line-through">
+   296→            Direct: {routeData.directTime} min
+   297→          </div>
+   298→        )}
+   299→        {hasAvoidedZones && timeSaved > 0 && (
+   300→          <div className="rounded-md bg-teal-500/15 border border-teal-500/30 px-2 py-1 text-[10px] font-bold text-teal-400">
+   301→            Saves {timeSaved} min
+   302→          </div>
+   303→        )}
+   304→        {!hasAvoidedZones && (
+   305→          <div className="rounded-md bg-green-500/15 border border-green-500/30 px-2 py-1 text-[10px] font-semibold text-green-400">
+   306→            Clear route: {routeData.safeTime} min
+   307→          </div>
+   308→        )}
+   309→      </div>
+   310→    </div>
+   311→  );
+   312→}
+   313→
+   314→// ---- Main Component ----
+   315→export function FleetConsole() {
+   316→  const [routeStatuses, setRouteStatuses] = useState<RouteStatus[]>([]);
+   317→  const [alerts, setAlerts] = useState<FleetAlert[]>([]);
+   318→  const [idleVehicleIds, setIdleVehicleIds] = useState<string[]>([]);
+   319→  const [selectedVehicle, setSelectedVehicle] = useState<string>('');
+   320→  const [selectedRoute, setSelectedRoute] = useState<string>('');
+   321→  const [dispatching, setDispatching] = useState(false);
+   322→  const [loading, setLoading] = useState(true);
+   323→  const [soundMuted, setSoundMuted] = useState(false);
+   324→  const [emergencies, setEmergencies] = useState<EmergencyEvent[]>(initialEmergencies);
+   325→  const [selectedEmergency, setSelectedEmergency] = useState<EmergencyEvent | null>(null);
+   326→  const [emergencyVehicle, setEmergencyVehicle] = useState<string>('');
+   327→  const [emergencyDispatching, setEmergencyDispatching] = useState(false);
+   328→  const playedAlertIds = useRef<Set<string>>(new Set());
+   329→  const [showRouteMap, setShowRouteMap] = useState(false);
+   330→  const [dispatchedEmergencies, setDispatchedEmergencies] = useState<Set<string>>(new Set());
+   331→
+   332→  // Overcrowded routes (demand > 85)
+   333→  const overcrowdedRoutes = useMemo(
+   334→    () => routeStatuses.filter((r) => r.utilizationPct > 85),
+   335→    [routeStatuses]
+   336→  );
+   337→
+   338→  // Idle vehicles from mock data (rich objects)
+   339→  const idleVehicles: Vehicle[] = useMemo(() => getIdleVehicles(), []);
+   340→
+   341→  // Unresolved emergencies
+   342→  const activeEmergencies = useMemo(
+   343→    () => emergencies.filter(e => !e.resolved),
+   344→    [emergencies]
+   345→  );
+   346→
+   347→  // Toggle sound
+   348→  const toggleSound = useCallback(() => {
+   349→    const next = !soundMuted;
+   350→    setSoundMuted(next);
+   351→    setMuted(next);
+   352→  }, [soundMuted]);
+   353→
+   354→  // Fetch fleet status
+   355→  const fetchStatus = useCallback(async () => {
+   356→    try {
+   357→      const res = await fetch('/api/v1/fleet/status');
+   358→      if (!res.ok) return;
+   359→      const data: FleetStatusResponse = await res.json();
+   360→      if (data.success) {
+   361→        setRouteStatuses(data.routes);
+   362→        setAlerts((prev) => {
+   363→          const newAlerts = data.alerts.filter(
+   364→            (a) => !prev.some((p) => p.timestamp === a.timestamp && p.message === p.message)
+   365→          );
+   366→          return [...newAlerts, ...prev].slice(0, 50);
+   367→        });
+   368→        setIdleVehicleIds(data.idleVehicles);
+   369→      }
+   370→    } catch {
+   371→      // silently fail
+   372→    } finally {
+   373→      setLoading(false);
+   374→    }
+   375→  }, []);
+   376→
+   377→  useEffect(() => {
+   378→    fetchStatus();
+   379→    const interval = setInterval(fetchStatus, 8000);
+   380→    return () => clearInterval(interval);
+   381→  }, [fetchStatus]);
+   382→
+   383→  // Simulate new emergencies every 20-40s
+   384→  useEffect(() => {
+   385→    const scheduleNext = () => {
+   386→      const delay = 20000 + Math.random() * 20000; // 20-40s
+   387→      return setTimeout(() => {
+   388→        const newEvent = generateRandomEmergency();
+   389→        setEmergencies(prev => [newEvent, ...prev].slice(0, 20));
+   390→        // Play alert sound
+   391→        if (!playedAlertIds.current.has(newEvent.id)) {
+   392→          playedAlertIds.current.add(newEvent.id);
+   393→          playAlertSound(newEvent.type);
+   394→        }
+   395→        // Also add to alert feed
+   396→        setAlerts(prev => [{
+   397→          type: newEvent.type,
+   398→          vehicleId: newEvent.vehicleId,
+   399→          routeName: newEvent.routeName,
+   400→          message: newEvent.message,
+   401→          timestamp: newEvent.timestamp,
+   402→        }, ...prev].slice(0, 50));
+   403→        scheduleNext();
+   404→      }, delay);
+   405→    };
+   406→    const timer = scheduleNext();
+   407→    return () => clearTimeout(timer);
+   408→  }, []);
+   409→
+   410→  // Play sounds for initial emergencies on first load
+   411→  useEffect(() => {
+   412→    const timer = setTimeout(() => {
+   413→      for (const emg of initialEmergencies) {
+   414→        if (!playedAlertIds.current.has(emg.id)) {
+   415→          playedAlertIds.current.add(emg.id);
+   416→          playAlertSound(emg.type);
+   417→        }
+   418→      }
+   419→    }, 500);
+   420→    return () => clearTimeout(timer);
+   421→  }, []);
+   422→
+   423→  // Handle re-route dispatch
+   424→  const handleDispatch = async () => {
+   425→    if (!selectedVehicle || !selectedRoute) {
+   426→      toast.error('Select a vehicle and a target route.');
+   427→      return;
+   428→    }
+   429→    setDispatching(true);
+   430→    try {
+   431→      const res = await fetch('/api/v1/fleet/re-route', {
+   432→        method: 'POST',
+   433→        headers: { 'Content-Type': 'application/json' },
+   434→        body: JSON.stringify({ sourceRouteId: '', targetRouteId: selectedRoute, vehicleId: selectedVehicle }),
+   435→      });
+   436→      const data = await res.json();
+   437→      if (data.success) {
+   438→        toast.success(data.message, { description: data.updatedCapacityRelief });
+   439→        setSelectedVehicle('');
+   440→        setSelectedRoute('');
+   441→        await fetchStatus();
+   442→      } else {
+   443→        toast.error(data.error || 'Dispatch failed.');
+   444→      }
+   445→    } catch {
+   446→      toast.error('Network error. Please try again.');
+   447→    } finally {
+   448→      setDispatching(false);
+   449→    }
+   450→  };
+   451→
+   452→  // Handle emergency dispatch
+   453→  const handleEmergencyDispatch = async () => {
+   454→    if (!emergencyVehicle || !selectedEmergency) {
+   455→      toast.error('Select a vehicle to dispatch.');
+   456→      return;
+   457→    }
+   458→    setEmergencyDispatching(true);
+   459→    try {
+   460→      const res = await fetch('/api/v1/fleet/emergency-dispatch', {
+   461→        method: 'POST',
+   462→        headers: { 'Content-Type': 'application/json' },
+   463→        body: JSON.stringify({ vehicleId: emergencyVehicle, emergencyStopId: selectedEmergency.stopId }),
+   464→      });
+   465→      const data = await res.json();
+   466→      if (data.success) {
+   467→        toast.success(data.message, {
+   468→          description: `Routed via safest path. ETA: ${data.routeData.safeTime} min. Avoiding: ${data.routeData.avoidedZones.join(', ') || 'None'}`,
+   469→        });
+   470→        setEmergencyVehicle('');
+   471→        setSelectedEmergency(null);
+   472→        setShowRouteMap(false);
+   473→        // Mark emergency as resolved
+   474→        setEmergencies(prev => prev.map(e =>
+   475→          e.id === selectedEmergency.id ? { ...e, resolved: true } : e
+   476→        ));
+   477→        setDispatchedEmergencies(prev => new Set([...prev, selectedEmergency.id]));
+   478→        playAlertSound('INFO');
+   479→      } else {
+   480→        toast.error(data.error || 'Emergency dispatch failed.');
+   481→      }
+   482→    } catch {
+   483→      toast.error('Network error. Please try again.');
+   484→    } finally {
+   485→      setEmergencyDispatching(false);
+   486→    }
+   487→  };
+   488→
+   489→  const handleSelectEmergency = (emg: EmergencyEvent) => {
+   490→    setSelectedEmergency(emg);
+   491→    setShowRouteMap(true);
+   492→    playAlertSound(emg.type);
+   493→  };
+   494→
+   495→  const handleResolveEmergency = (emgId: string) => {
+   496→    setEmergencies(prev => prev.map(e => e.id === emgId ? { ...e, resolved: true } : e));
+   497→    setDispatchedEmergencies(prev => new Set([...prev, emgId]));
+   498→    toast.success('Emergency marked as resolved.');
+   499→  };
+   500→
+   501→  const selectedEmergencyVehicle = emergencyVehicle ? getVehicle(emergencyVehicle) : undefined;
+   502→
+   503→  return (
+   504→    <div className="flex flex-col gap-4 w-full">
+   505→      {/* ---- 0. Emergency Alert Banner (top-most, full width) ---- */}
+   506→      <AnimatePresence>
+   507→        {activeEmergencies.length > 0 && (
+   508→          <motion.div
+   509→            initial={{ opacity: 0, height: 0 }}
+   510→            animate={{ opacity: 1, height: 'auto' }}
+   511→            className="space-y-2"
+   512→          >
+   513→            <div className="flex items-center justify-between rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2.5">
+   514→              <div className="flex items-center gap-3">
+   515→                <motion.div
+   516→                  animate={{ scale: [1, 1.2, 1] }}
+   517→                  transition={{ duration: 0.8, repeat: Infinity }}
+   518→                >
+   519→                  <AlertTriangle className="size-5 text-red-400" />
+   520→                </motion.div>
+   521→                <div>
+   522→                  <p className="text-sm font-bold text-red-400">
+   523→                    {activeEmergencies.length} Active Emergenc{activeEmergencies.length === 1 ? 'y' : 'ies'}
+   524→                  </p>
+   525→                  <p className="text-xs text-red-300/70">
+   526→                    {activeEmergencies.reduce((s, e) => s + e.passengersStranded, 0)} passengers need assistance
+   527→                  </p>
+   528→                </div>
+   529→              </div>
+   530→              <button
+   531→                onClick={toggleSound}
+   532→                className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+   533→              >
+   534→                {soundMuted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+   535→                {soundMuted ? 'Unmute' : 'Mute'}
+   536→              </button>
+   537→            </div>
+   538→          </motion.div>
+   539→        )}
+   540→      </AnimatePresence>
+   541→
+   542→      {/* ---- 0b. Overcrowding Alerts ---- */}
+   543→      <AnimatePresence>
+   544→        {overcrowdedRoutes.length > 0 &&
+   545→          overcrowdedRoutes.map((route) => (
+   546→            <motion.div
+   547→              key={route.routeId}
+   548→              initial={{ opacity: 0, y: -10 }}
+   549→              animate={{ opacity: 1, y: 0 }}
+   550→              exit={{ opacity: 0, y: -10 }}
+   551→              transition={{ duration: 0.3 }}
+   552→              className="animate-pulse-alert rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400 flex items-center gap-2"
+   553→            >
+   554→              <AlertTriangle className="size-4 shrink-0 text-red-400" />
+   555→              <span>
+   556→                OVERCROWDING ALERT: {route.routeName} at {route.utilizationPct}% capacity
+   557→                – Immediate dispatch recommended
+   558→              </span>
+   559→            </motion.div>
+   560→          ))}
+   561→      </AnimatePresence>
+   562→
+   563→      {/* ---- 1. Emergency Events List ---- */}
+   564→      <Card className="border-red-500/20">
+   565→        <CardHeader className="pb-2">
+   566→          <div className="flex items-center justify-between">
+   567→            <CardTitle className="flex items-center gap-2 text-base">
+   568→              <ShieldCheck className="size-4 text-red-400" />
+   569→              Emergency Dispatch Center
+   570→              {activeEmergencies.length > 0 && (
+   571→                <Badge className="bg-red-500/20 text-red-400 border-red-500/40 text-[10px] px-1.5">
+   572→                  {activeEmergencies.length} ACTIVE
+   573→                </Badge>
+   574→              )}
+   575→            </CardTitle>
+   576→            <button
+   577→              onClick={toggleSound}
+   578→              className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+   579→            >
+   580→              {soundMuted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+   581→              {soundMuted ? 'Unmute Alerts' : 'Mute Alerts'}
+   582→            </button>
+   583→          </div>
+   584→        </CardHeader>
+   585→        <CardContent>
+   586→          <ScrollArea className="max-h-48">
+   587→            <div className="space-y-2 pr-2">
+   588→              {emergencies.length === 0 ? (
+   589→                <p className="py-4 text-center text-sm text-muted-foreground">No emergencies reported.</p>
+   590→              ) : (
+   591→                <AnimatePresence initial={false}>
+   592→                  {emergencies.map((emg) => {
+   593→                    const info = emergencyTypeInfo(emg.type);
+   594→                    const EmerIcon = info.icon;
+   595→                    const isDispatched = dispatchedEmergencies.has(emg.id);
+   596→                    return (
+   597→                      <motion.div
+   598→                        key={emg.id}
+   599→                        initial={{ opacity: 0, x: -20 }}
+   600→                        animate={{ opacity: 1, x: 0 }}
+   601→                        transition={{ duration: 0.3 }}
+   602→                        className={`rounded-lg border px-3 py-2.5 text-xs ${
+   603→                          emg.resolved
+   604→                            ? 'border-green-500/20 bg-green-500/5'
+   605→                            : 'border-red-500/20 bg-red-500/5'
+   606→                        }`}
+   607→                      >
+   608→                        <div className="flex items-start gap-3">
+   609→                          <div className={`mt-0.5 shrink-0 rounded-full p-1.5 ${
+   610→                            emg.resolved ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+   611→                          }`}>
+   612→                            {emg.resolved ? <CheckCircle2 className="size-3" /> : <EmerIcon className="size-3" />}
+   613→                          </div>
+   614→                          <div className="flex-1 min-w-0">
+   615→                            <div className="flex items-center gap-2 flex-wrap">
+   616→                              <Badge variant="outline" className={`text-[9px] px-1.5 py-0 border ${info.bg}`}>
+   617→                                {info.label}
+   618→                              </Badge>
+   619→                              <span className="font-semibold text-foreground">{emg.vehicleId}</span>
+   620→                              <span className="text-muted-foreground">•</span>
+   621→                              <span className="font-medium text-foreground/80">{emg.driverName}</span>
+   622→                              <span className="text-muted-foreground">•</span>
+   623→                              <span className="flex items-center gap-0.5 text-amber-400">
+   624→                                <Users className="size-3" /> {emg.passengersStranded} stranded
+   625→                              </span>
+   626→                            </div>
+   627→                            <p className="mt-1 text-muted-foreground leading-relaxed">{emg.message}</p>
+   628→                            <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+   629→                              <span className="flex items-center gap-1 text-muted-foreground/60">
+   630→                                <MapPin className="size-3" /> {emg.stopName}
+   631→                              </span>
+   632→                              <span className="flex items-center gap-1 text-muted-foreground/60">
+   633→                                <Clock className="size-3" /> {formatTimeShort(emg.timestamp)}
+   634→                              </span>
+   635→                              <span className="flex items-center gap-1 text-muted-foreground/60">
+   636→                                <RouteIcon className="size-3" /> {emg.routeName.split('–')[0].trim()}
+   637→                              </span>
+   638→                            </div>
+   639→                            {!emg.resolved && (
+   640→                              <div className="mt-2 flex items-center gap-2">
+   641→                                <Button
+   642→                                  size="sm"
+   643→                                  className="h-7 text-[11px] px-3"
+   644→                                  style={{ backgroundColor: '#14b8a6', color: '#0a0a0a' }}
+   645→                                  onClick={() => handleSelectEmergency(emg)}
+   646→                                >
+   647→                                  <Navigation className="size-3 mr-1" />
+   648→                                  Dispatch to Location
+   649→                                </Button>
+   650→                                <Button
+   651→                                  size="sm"
+   652→                                  variant="ghost"
+   653→                                  className="h-7 text-[11px] text-green-400 hover:text-green-300 hover:bg-green-500/10"
+   654→                                  onClick={() => handleResolveEmergency(emg.id)}
+   655→                                >
+   656→                                  <CheckCircle2 className="size-3 mr-1" />
+   657→                                  Resolve
+   658→                                </Button>
+   659→                              </div>
+   660→                            )}
+   661→                            {isDispatched && emg.resolved && (
+   662→                              <p className="mt-1.5 text-[10px] text-green-400 font-medium">
+   663→                                ✓ Relief bus dispatched successfully
+   664→                              </p>
+   665→                            )}
+   666→                          </div>
+   667→                        </div>
+   668→                      </motion.div>
+   669→                    );
+   670→                  })}
+   671→                </AnimatePresence>
+   672→              )}
+   673→            </div>
+   674→          </ScrollArea>
+   675→        </CardContent>
+   676→      </Card>
+   677→
+   678→      {/* ---- 2. Emergency Dispatch Panel (appears when emergency selected) ---- */
+   679→      <AnimatePresence>
+   680→        {showRouteMap && selectedEmergency && (
+   681→          <motion.div
+   682→            initial={{ opacity: 0, height: 0 }}
+   683→            animate={{ opacity: 1, height: 'auto' }}
+   684→            exit={{ opacity: 0, height: 0 }}
+   685→            transition={{ duration: 0.4 }}
+   686→          >
+   687→            <Card className="border-teal-500/30">
+   688→              <CardHeader className="pb-2">
+   689→                <div className="flex items-center justify-between">
+   690→                  <CardTitle className="flex items-center gap-2 text-base">
+   691→                    <Navigation className="size-4 text-teal-400" />
+   692→                    Safest Route to {selectedEmergency.stopName}
+   693→                  </CardTitle>
+   694→                  <Button
+   695→                    size="sm"
+   696→                    variant="ghost"
+   697→                    className="h-7 text-xs text-muted-foreground"
+   698→                    onClick={() => { setShowRouteMap(false); setSelectedEmergency(null); setEmergencyVehicle(''); }}
+   699→                  >
+   700→                    Close
+   701→                  </Button>
+   702→                </div>
+   703→              </CardHeader>
+   704→              <CardContent className="space-y-4">
+   705→                {/* Mini map with safest route */}
+   706→                <SafestRouteMap
+   707→                  emergency={selectedEmergency}
+   708→                  selectedVehicle={selectedEmergencyVehicle}
+   709→                />
+   710→
+   711→                {/* Dispatch controls */}
+   712→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   713→                  <div className="space-y-2">
+   714→                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+   715→                      Select Bus to Dispatch
+   716→                    </p>
+   717→                    <ScrollArea className="max-h-28">
+   718→                      <div className="space-y-1.5 pr-2">
+   719→                        {idleVehicles.length === 0 ? (
+   720→                          <p className="text-xs text-muted-foreground italic py-2">No idle vehicles</p>
+   721→                        ) : (
+   722→                          idleVehicles.map((v) => (
+   723→                            <button
+   724→                              key={v.vehicleId}
+   725→                              onClick={() => setEmergencyVehicle(v.vehicleId)}
+   726→                              className={`w-full flex items-center justify-between rounded-md border px-3 py-2 text-xs transition-colors cursor-pointer text-left ${
+   727→                                emergencyVehicle === v.vehicleId
+   728→                                  ? 'border-teal-500/60 bg-teal-500/10 text-teal-300'
+   729→                                  : 'border-border bg-card hover:border-muted-foreground/40 hover:bg-muted/30'
+   730→                              }`}
+   731→                            >
+   732→                              <span className="flex items-center gap-2 font-medium">
+   733→                                <Bus className="size-3" /> {v.vehicleId}
+   734→                              </span>
+   735→                              <span className="text-muted-foreground">Cap: {v.capacity} • From Depot</span>
+   736→                            </button>
+   737→                          ))
+   738→                        )}
+   739→                      </div>
+   740→                    </ScrollArea>
+   741→                  </div>
+   742→
+   743→                  <div className="space-y-3">
+   744→                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+   745→                      <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+   746→                        <AlertTriangle className="size-3" /> Emergency Summary
+   747→                      </p>
+   748→                      <div className="grid grid-cols-2 gap-2 text-xs">
+   749→                        <div>
+   750→                          <span className="text-muted-foreground">Type:</span>
+   751→                          <span className="ml-1 font-medium text-foreground">{selectedEmergency.type.replace('_', ' ')}</span>
+   752→                        </div>
+   753→                        <div>
+   754→                          <span className="text-muted-foreground">Bus:</span>
+   755→                          <span className="ml-1 font-medium text-red-400">{selectedEmergency.vehicleId}</span>
+   756→                        </div>
+   757→                        <div>
+   758→                          <span className="text-muted-foreground">Location:</span>
+   759→                          <span className="ml-1 font-medium text-foreground">{selectedEmergency.stopName}</span>
+   760→                        </div>
+   761→                        <div>
+   762→                          <span className="text-muted-foreground">Stranded:</span>
+   763→                          <span className="ml-1 font-bold text-red-400">{selectedEmergency.passengersStranded} people</span>
+   764→                        </div>
+   765→                      </div>
+   766→                    </div>
+   767→
+   768→                    <Button
+   769→                      className="w-full"
+   770→                      style={{ backgroundColor: '#14b8a6', color: '#0a0a0a' }}
+   771→                      disabled={!emergencyVehicle || emergencyDispatching}
+   772→                      onClick={handleEmergencyDispatch}
+   773→                    >
+   774→                      <Send className="size-4" />
+   775→                      {emergencyDispatching ? 'Dispatching via Safest Route…' : 'Dispatch Bus Now'}
+   776→                    </Button>
+   777→                  </div>
+   778→                </div>
+   779→              </CardContent>
+   780→            </Card>
+   781→          </motion.div>
+   782→        )}
+   783→      </AnimatePresence>
+   784→
+   785→      {/* ---- 3. Main Grid + Dispatch Sidebar ---- */}
+   786→      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
+   787→        {/* Fleet Heatmap Grid */}
+   788→        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4">
+   789→          {loading
+   790→            ? Array.from({ length: 4 }).map((_, i) => (
+   791→                <Card key={i} className="animate-pulse">
+   792→                  <CardContent className="space-y-3">
+   793→                    <div className="h-4 w-2/3 rounded bg-muted" />
+   794→                    <div className="h-2 w-full rounded bg-muted" />
+   795→                    <div className="h-4 w-1/3 rounded bg-muted" />
+   796→                  </CardContent>
+   797→                </Card>
+   798→              ))
+   799→            : routeStatuses.map((route) => {
+   800→                const color = demandColor(route.utilizationPct);
+   801→                const isOvercrowded = route.utilizationPct > 85;
+   802→                return (
+   803→                  <motion.div
+   804→                    key={route.routeId}
+   805→                    initial={{ opacity: 0, scale: 0.95 }}
+   806→                    animate={{ opacity: 1, scale: 1 }}
+   807→                    transition={{ duration: 0.3 }}
+   808→                  >
+   809→                    <Card
+   810→                      className={
+   811→                        isOvercrowded
+   812→                          ? 'border-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+   813→                          : 'border-border'
+   814→                      }
+   815→                    >
+   816→                      <CardHeader className="pb-0">
+   817→                        <div className="flex items-start justify-between gap-2">
+   818→                          <CardTitle className="text-sm font-semibold leading-tight">
+   819→                            <span
+   820→                              className="mr-2 inline-block size-2.5 rounded-full"
+   821→                              style={{ backgroundColor: route.routeColor }}
+   822→                            />
+   823→                            {route.routeName}
+   824→                          </CardTitle>
+   825→                          <Badge
+   826→                            variant="outline"
+   827→                            className="shrink-0 text-[10px] font-bold uppercase"
+   828→                            style={{ borderColor: color, color }}
+   829→                          >
+   830→                            {route.congestionIndex}
+   831→                          </Badge>
+   832→                        </div>
+   833→                      </CardHeader>
+   834→                      <CardContent className="space-y-3">
+   835→                        <div className="space-y-1.5">
+   836→                          <div className="flex items-center justify-between text-xs">
+   837→                            <span className="text-muted-foreground">Utilization</span>
+   838→                            <span className="font-bold tabular-nums" style={{ color }}>{route.utilizationPct}%</span>
+   839→                          </div>
+   840→                          <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/5">
+   841→                            <div
+   842→                              className="h-full rounded-full transition-all duration-700"
+   843→                              style={{ width: `${route.utilizationPct}%`, backgroundColor: color }}
+   844→                            />
+   845→                          </div>
+   846→                        </div>
+   847→                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+   848→                          <span className="flex items-center gap-1">
+   849→                            <Bus className="size-3" />
+   850→                            <span className="tabular-nums font-medium text-foreground">{route.vehicleCount}</span> active
+   851→                          </span>
+   852→                          <span className="flex items-center gap-1">
+   853→                            <Users className="size-3" />
+   854→                            <span className="tabular-nums font-medium text-foreground">{route.currentDemand}</span>/{route.totalCapacity}
+   855→                          </span>
+   856→                          <Badge
+   857→                            variant="secondary"
+   858→                            className="ml-auto text-[10px] px-1.5 py-0"
+   859→                            style={{ backgroundColor: `${color}18`, color, borderColor: `${color}30` }}
+   860→                          >
+   861→                            {demandLabel(route.utilizationPct)}
+   862→                          </Badge>
+   863→                        </div>
+   864→                      </CardContent>
+   865→                    </Card>
+   866→                  </motion.div>
+   867→                );
+   868→              })}
+   869→        </div>
+   870→
+   871→        {/* ---- 4. Quick Dispatch Sidebar ---- */}
+   872→        <div className="flex flex-col gap-4">
+   873→          <Card>
+   874→            <CardHeader className="pb-2">
+   875→              <CardTitle className="flex items-center gap-2 text-base">
+   876→                <Send className="size-4 text-teal-400" />
+   877→                Quick Re-Route
+   878→              </CardTitle>
+   879→            </CardHeader>
+   880→            <CardContent className="space-y-4">
+   881→              <div className="space-y-2">
+   882→                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Available Vehicles</p>
+   883→                <ScrollArea className="max-h-32">
+   884→                  <div className="space-y-1.5 pr-2">
+   885→                    {idleVehicles.length === 0 ? (
+   886→                      <p className="text-xs text-muted-foreground italic py-2">No idle vehicles available</p>
+   887→                    ) : (
+   888→                      idleVehicles.map((v) => (
+   889→                        <button
+   890→                          key={v.vehicleId}
+   891→                          onClick={() => setSelectedVehicle(v.vehicleId)}
+   892→                          className={`w-full flex items-center justify-between rounded-md border px-3 py-2 text-xs transition-colors cursor-pointer text-left ${
+   893→                            selectedVehicle === v.vehicleId
+   894→                              ? 'border-teal-500/60 bg-teal-500/10 text-teal-300'
+   895→                              : 'border-border bg-card hover:border-muted-foreground/40 hover:bg-muted/30'
+   896→                          }`}
+   897→                        >
+   898→                          <span className="flex items-center gap-2 font-medium"><Bus className="size-3" />{v.vehicleId}</span>
+   899→                          <span className="text-muted-foreground">Cap: {v.capacity}</span>
+   900→                        </button>
+   901→                      ))
+   902→                    )}
+   903→                  </div>
+   904→                </ScrollArea>
+   905→              </div>
+   906→              <div className="space-y-2">
+   907→                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Target Route (Overcrowded)</p>
+   908→                <Select value={selectedRoute} onValueChange={setSelectedRoute}>
+   909→                  <SelectTrigger className="w-full">
+   910→                    <SelectValue placeholder="Select overcrowded route…" />
+   911→                  </SelectTrigger>
+   912→                  <SelectContent>
+   913→                    {overcrowdedRoutes.length === 0 ? (
+   914→                      <SelectItem value="_none" disabled>No overcrowded routes</SelectItem>
+   915→                    ) : (
+   916→                      overcrowdedRoutes.map((r) => (
+   917→                        <SelectItem key={r.routeId} value={r.routeId}>
+   918→                          <span className="flex items-center gap-2">
+   919→                            <span className="inline-block size-2 rounded-full bg-red-500" />
+   920→                            {r.routeName} ({r.utilizationPct}%)
+   921→                          </span>
+   922→                        </SelectItem>
+   923→                      ))
+   924→                    )}
+   925→                  </SelectContent>
+   926→                </Select>
+   927→              </div>
+   928→              <Button
+   929→                className="w-full"
+   930→                style={{ backgroundColor: '#14b8a6', color: '#0a0a0a' }}
+   931→                disabled={!selectedVehicle || !selectedRoute || dispatching}
+   932→                onClick={handleDispatch}
+   933→              >
+   934→                <ArrowRightLeft className="size-4" />
+   935→                {dispatching ? 'Dispatching…' : 'Re-Route Bus'}
+   936→              </Button>
+   937→            </CardContent>
+   938→          </Card>
+   939→          <Card>
+   940→            <CardContent className="pt-6 space-y-3">
+   941→              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+   942→                <Gauge className="size-3" /> Fleet Summary
+   943→              </div>
+   944→              <div className="grid grid-cols-2 gap-3">
+   945→                <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+   946→                  <p className="text-lg font-bold text-teal-400 tabular-nums">
+   947→                    {routeStatuses.reduce((s, r) => s + r.vehicleCount, 0) + idleVehicles.length}
+   948→                  </p>
+   949→                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
+   950→                </div>
+   951→                <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+   952→                  <p className="text-lg font-bold text-amber-400 tabular-nums">{idleVehicles.length}</p>
+   953→                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Idle</p>
+   954→                </div>
+   955→                <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+   956→                  <p className="text-lg font-bold text-red-400 tabular-nums">{activeEmergencies.length}</p>
+   957→                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Emergencies</p>
+   958→                </div>
+   959→                <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+   960→                  <p className="text-lg font-bold text-green-400 tabular-nums">
+   961→                    {routeStatuses.filter((r) => r.utilizationPct < 50).length}
+   962→                  </p>
+   963→                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Normal</p>
+   964→                </div>
+   965→              </div>
+   966→            </CardContent>
+   967→          </Card>
+   968→        </div>
+   969→      </div>
+   970→
+   971→      {/* ---- 5. Alerts Feed ---- */}
+   972→      <Card>
+   973→        <CardHeader className="pb-2">
+   974→          <CardTitle className="flex items-center gap-2 text-base">
+   975→            <Radio className="size-4 text-amber-400" />
+   976→            Live Alerts Feed
+   977→            <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+   978→              <Activity className="size-3 text-green-400" />
+   979→              Auto-refreshing every 8s
+   980→            </span>
+   981→          </CardTitle>
+   982→        </CardHeader>
+   983→        <CardContent>
+   984→          <ScrollArea className="max-h-64">
+   985→            <div className="space-y-2 pr-2">
+   986→              {alerts.length === 0 ? (
+   987→                <p className="py-6 text-center text-sm text-muted-foreground">No alerts yet. Monitoring fleet…</p>
+   988→              ) : (
+   989→                <AnimatePresence initial={false}>
+   990→                  {alerts.map((alert, idx) => {
+   991→                    const isOvercrowding = alert.type === 'OVERCROWDING';
+   992→                    const isDrowsiness = alert.type === 'DROWSINESS';
+   993→                    const isEmergency = ['PUNCTURE', 'TRAFFIC_JAM', 'DRIVER_UNAVAILABLE', 'BREAKDOWN'].includes(alert.type);
+   994→                    let borderColor = 'border-amber-500/30';
+   995→                    let bgColor = 'bg-amber-500/5';
+   996→                    let textColor = 'text-amber-300';
+   997→                    let iconBg = 'bg-amber-500/20 text-amber-400';
+   998→                    let IconComp = Eye;
+   999→
+  1000→                    if (isOvercrowding) {
+  1001→                      borderColor = 'border-red-500/30';
+  1002→                      bgColor = 'bg-red-500/5';
+  1003→                      textColor = 'text-red-300';
+  1004→                      iconBg = 'bg-red-500/20 text-red-400';
+  1005→                      IconComp = AlertTriangle;
+  1006→                    } else if (isEmergency) {
+  1007→                      borderColor = 'border-red-500/30';
+  1008→                      bgColor = 'bg-red-500/5';
+  1009→                      textColor = 'text-red-300';
+  1010→                      iconBg = 'bg-red-500/20 text-red-400';
+  1011→                      const eInfo = emergencyTypeInfo(alert.type as EmergencyType);
+  1012→                      IconComp = eInfo.icon;
+  1013→                    } else if (isDrowsiness) {
+  1014→                      IconComp = Eye;
+  1015→                    }
+  1016→
+  1017→                    return (
+  1018→                      <motion.div
+  1019→                        key={`${alert.timestamp}-${alert.message.slice(0, 40)}-${idx}`}
+  1020→                        initial={{ opacity: 0, x: -20 }}
+  1021→                        animate={{ opacity: 1, x: 0 }}
+  1022→                        exit={{ opacity: 0, x: -20 }}
+  1023→                        transition={{ duration: 0.35, ease: 'easeOut' }}
+  1024→                        className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 text-xs ${bgColor} ${borderColor}`}
+  1025→                      >
+  1026→                        <div className={`mt-0.5 shrink-0 rounded-full p-1 ${iconBg}`}>
+  1027→                          <IconComp className="size-3" />
+  1028→                        </div>
+  1029→                        <div className="flex-1 min-w-0">
+  1030→                          <p className={`font-medium leading-tight ${textColor}`}>{alert.message}</p>
+  1031→                          <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">{formatTime(alert.timestamp)}</p>
+  1032→                        </div>
+  1033→                        <Badge
+  1034→                          variant="outline"
+  1035→                          className={`shrink-0 text-[9px] px-1.5 py-0 ${borderColor} ${textColor}`}
+  1036→                        >
+  1037→                          {alert.type}
+  1038→                        </Badge>
+  1039→                      </motion.div>
+  1040→                    );
+  1041→                  })}
+  1042→                </AnimatePresence>
+  1043→              )}
+  1044→            </div>
+  1045→          </ScrollArea>
+  1046→        </CardContent>
+  1047→      </Card>
+  1048→    </div>
+  1049→  );
+  1050→}
+  1051→
