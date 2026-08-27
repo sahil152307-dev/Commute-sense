@@ -180,7 +180,7 @@ export function FleetConsole() {
       {/* Emergency banner */}
       <AnimatePresence>
         {activeEmergencies.length > 0 && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
             <div className="flex items-center justify-between rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2.5">
               <div className="flex items-center gap-3">
                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }}>
@@ -203,7 +203,7 @@ export function FleetConsole() {
       {/* Overcrowding alerts */}
       <AnimatePresence>
         {overcrowdedRoutes.map(route => (
-          <motion.div key={route.routeId} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="animate-pulse-alert rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400 flex items-center gap-2">
+          <motion.div key={route.routeId} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="animate-pulse-alert rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400 flex items-center gap-2">
             <AlertTriangle className="size-4 shrink-0 text-red-400" />
             <span>OVERCROWDING: {route.routeName} at {route.utilizationPct}% – Dispatch recommended</span>
           </motion.div>

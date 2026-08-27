@@ -115,7 +115,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
   return (
     <>
       {/* Emergency Events Card */}
-      <Card className="border-red-500/20">
+      <Card className="border-red-500/20 relative overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="size-4 text-red-400" />
@@ -127,29 +127,28 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-hidden">
           <ScrollArea className="max-h-48">
             <div className="space-y-2 pr-2">
               {emergencies.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No emergencies reported.</p>
               ) : (
-                <AnimatePresence initial={false}>
-                  {emergencies.map((emg) => {
-                    const info = emergencyTypeInfo(emg.type);
-                    const isDispatched = dispatchedEmergencies.has(emg.id);
-                    const EmerIcon = info.icon;
-                    return (
-                      <motion.div
-                        key={emg.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className={
-                          emg.resolved
-                            ? 'rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2.5 text-xs'
-                            : 'rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-xs'
-                        }
-                      >
+                emergencies.map((emg) => {
+                  const info = emergencyTypeInfo(emg.type);
+                  const isDispatched = dispatchedEmergencies.has(emg.id);
+                  const EmerIcon = info.icon;
+                  return (
+                    <motion.div
+                      key={emg.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={
+                        emg.resolved
+                          ? 'rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2.5 text-xs'
+                          : 'rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-xs'
+                      }
+                    >
                         <div className="flex items-start gap-3">
                           <div className={
                             emg.resolved
@@ -214,8 +213,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
                         </div>
                       </motion.div>
                     );
-                  })}
-                </AnimatePresence>
+                  })
               )}
             </div>
           </ScrollArea>
@@ -230,6 +228,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.4 }}
+            className="overflow-hidden"
           >
             <Card className="border-teal-500/30">
               <CardHeader className="pb-2">

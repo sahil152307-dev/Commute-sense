@@ -28,3 +28,27 @@ Stage Summary:
 - Feature 4: Fleet heatmap grid + idle vehicle dispatch + live re-routing API + alerts feed
 - Feature 5: Speed/stability/EAR gauges, metrics grid, speed sparkline, eye-tracking fatigue simulator, drowsiness alert banner
 - All components use framer-motion animations, responsive design, shadcn/ui, lucide-react icons
+
+---
+Task ID: 2
+Agent: Main Orchestrator
+Task: Fix overlapping between Emergency Dispatch Center cards and Route Status cards in Admin portal
+
+Work Log:
+- Analyzed user's screenshot with VLM to identify the exact overlap: Route Status cards (utilization bars, MODERATE badges) were rendering on top of Emergency Dispatch Center items (BUS_107, BUS_105 cards)
+- Reproduced the issue at 1280x720 viewport - confirmed Route 101 card overlapping with BUS_107 emergency card
+- Root cause: AnimatePresence motion.div wrappers animating height without overflow:hidden, causing content to visually bleed during/after animations
+- Added `overflow-hidden` to emergency banner AnimatePresence wrapper in fleet-console.tsx
+- Added `layout` prop to overcrowding alert motion.div items for proper layout reflow
+- Added `relative overflow-hidden` to Emergency Panel Card in emergency-panel.tsx
+- Added `overflow-hidden` to CardContent wrapping the ScrollArea
+- Added `overflow-hidden` to emergency dispatch panel AnimatePresence wrapper
+- Removed AnimatePresence from inside the ScrollArea (replaced with simple .map()) to prevent stacking context issues from motion.div items escaping the scrollable container
+- Fixed JSX bracket mismatch that resulted from the AnimatePresence removal
+- Verified fix at multiple viewports: 1280x720, 1024x768, 1440x900
+- Confirmed no remaining overlap via VLM analysis of before/after screenshots
+
+Stage Summary:
+- Three changes in fleet-console.tsx: overflow-hidden on emergency banner, layout prop on overcrowding alerts
+- Three changes in emergency-panel.tsx: Card overflow-hidden, CardContent overflow-hidden, removed AnimatePresence from scrollable list, dispatch panel overflow-hidden
+- Overlap completely resolved across all tested viewport sizes
