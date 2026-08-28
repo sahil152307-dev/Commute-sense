@@ -33,6 +33,7 @@ import {
   getIdleVehicles,
   type Vehicle,
   type EmergencyType,
+  type EmergencyEvent,
   emergencyEvents as initialEmergencies,
   generateRandomEmergency,
 } from '@/lib/mock-data';
@@ -179,6 +180,36 @@ export function FleetConsole() {
     } catch { toast.error('Network error.'); } finally { setDispatching(false); }
   };
 
+  const handleRescueBusStuck = useCallback((vehicleId: string, originalEmergency: EmergencyEvent) => {
+    const rescueStuckMsg = `RESCUE BUS ${vehicleId} IS ALSO STUCK! Dispatched to help ${originalEmergency.vehicleId} at ${originalEmergency.stopName} but encountered ${originalEmergency.type === 'TRAFFIC_JAM' ? 'heavy traffic' : 'a roadblock'} en route. Immediate second dispatch required!`;
+    const rescueEmergency: EmergencyEvent = {
+      id: `EMG_RESCUE_${Date.now()}`,
+      type: originalEmergency.type,
+      vehicleId,
+      driverId: `DRV_${Math.floor(100 + Math.random() * 900)}`,
+      driverName: 'Rescue Driver',
+      routeId: originalEmergency.routeId,
+      routeName: `Rescue → ${originalEmergency.stopName}`,
+      stopId: originalEmergency.stopId,
+      stopName: originalEmergency.stopName,
+      lat: originalEmergency.lat,
+      lng: originalEmergency.lng,
+      mapX: originalEmergency.mapX,
+      mapY: originalEmergency.mapY,
+      passengersStranded: 0,
+      message: rescueStuckMsg,
+      timestamp: new Date().toISOString(),
+      resolved: false,
+    };
+    playAlertSound('PUNCTURE');
+    toast.error(`Rescue bus ${vehicleId} is also stuck!`, {
+      description: `Was en route to help ${originalEmergency.vehicleId} at ${originalEmergency.stopName}`,
+      duration: 8000,
+    });
+    setEmergencies(prev => [rescueEmergency, ...prev].slice(0, 20));
+    setAlerts(prev => [{ type: 'RESCUE_STUCK', vehicleId, routeName: `Rescue → ${originalEmergency.stopName}`, message: rescueStuckMsg, timestamp: rescueEmergency.timestamp }, ...prev].slice(0, 50));
+  }, []);
+
   return (
     <div className="flex flex-col gap-4 w-full">
       {/* Emergency banner */}
@@ -220,6 +251,7 @@ export function FleetConsole() {
         setEmergencies={setEmergencies}
         dispatchedEmergencies={dispatchedEmergencies}
         setDispatchedEmergencies={setDispatchedEmergencies}
+        onRescueBusStuck={handleRescueBusStuck}
       />
 
       {/* Main grid + sidebar */}
@@ -329,7 +361,8 @@ export function FleetConsole() {
                 <AnimatePresence initial={false}>
                   {alerts.map((alert, idx) => {
                     const isOvercrowding = alert.type === 'OVERCROWDING';
-                    const isEmergency = ['PUNCTURE', 'TRAFFIC_JAM', 'DRIVER_UNAVAILABLE', 'BREAKDOWN'].includes(alert.type);
+                    const isRescueStuck = alert.type === 'RESCUE_STUCK';
+                    const isEmergency = ['PUNCTURE', 'TRAFFIC_JAM', 'DRIVER_UNAVAILABLE', 'BREAKDOWN', 'RESCUE_STUCK'].includes(alert.type);
                     const border = isOvercrowding || isEmergency ? 'border-red-500/30' : 'border-amber-500/30';
                     const bg = isOvercrowding || isEmergency ? 'bg-red-500/5' : 'bg-amber-500/5';
                     const text = isOvercrowding || isEmergency ? 'text-red-300' : 'text-amber-300';
@@ -343,7 +376,7 @@ export function FleetConsole() {
                           <p className={`font-medium leading-tight ${text}`}>{alert.message}</p>
                           <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">{formatTime(alert.timestamp)}</p>
                         </div>
-                        <Badge variant="outline" className={`shrink-0 text-[9px] px-1.5 py-0 ${border} ${text}`}>{alert.type}</Badge>
+                        <Badge variant="outline" className={`shrink-0 text-[9px] px-1.5 py-0 ${border} ${text}`}>{isRescueStuck ? 'RESCUE FAILED' : alert.type}</Badge>
                       </motion.div>
                     );
                   })}

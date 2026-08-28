@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
@@ -55,13 +55,17 @@ interface EmergencyPanelProps {
   setEmergencies: React.Dispatch<React.SetStateAction<EmergencyEvent[]>>;
   dispatchedEmergencies: Set<string>;
   setDispatchedEmergencies: React.Dispatch<React.SetStateAction<Set<string>>>;
+  onRescueBusStuck?: (vehicleId: string, originalEmergency: EmergencyEvent) => void;
 }
 
-export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergencies, setDispatchedEmergencies }: EmergencyPanelProps) {
+export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergencies, setDispatchedEmergencies, onRescueBusStuck }: EmergencyPanelProps) {
   const [selectedEmergency, setSelectedEmergency] = useState<EmergencyEvent | null>(null);
   const [emergencyVehicle, setEmergencyVehicle] = useState<string>('');
   const [emergencyDispatching, setEmergencyDispatching] = useState(false);
   const [showRouteMap, setShowRouteMap] = useState(false);
+
+  // Track dispatched vehicles for "rescue bus stuck" simulation
+  const dispatchedVehiclesRef = useRef<{ vehicleId: string; emergency: EmergencyEvent; timer: ReturnType<typeof setTimeout> }[]>([]);
 
   const activeEmergencies = emergencies.filter(e => !e.resolved);
   const idleVehicles: Vehicle[] = getIdleVehicles();
@@ -96,6 +100,15 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
         toast.success(data.message, {
           description: `Routed via safest path. ETA: ${data.routeData.safeTime} min. Avoiding: ${data.routeData.avoidedZones.join(', ') || 'None'}`,
         });
+        // Schedule potential "rescue bus stuck" alert (30% chance after 25-45s)
+        if (onRescueBusStuck && Math.random() < 0.3) {
+          const delay = 25000 + Math.random() * 20000;
+          const timer = setTimeout(() => {
+            onRescueBusStuck(emergencyVehicle, selectedEmergency);
+            dispatchedVehiclesRef.current = dispatchedVehiclesRef.current.filter(d => d.vehicleId !== emergencyVehicle);
+          }, delay);
+          dispatchedVehiclesRef.current.push({ vehicleId: emergencyVehicle, emergency: selectedEmergency, timer });
+        }
         setEmergencyVehicle('');
         setSelectedEmergency(null);
         setShowRouteMap(false);
@@ -111,6 +124,13 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
       setEmergencyDispatching(false);
     }
   };
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      dispatchedVehiclesRef.current.forEach(d => clearTimeout(d.timer));
+    };
+  }, []);
 
   return (
     <>

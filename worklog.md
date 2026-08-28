@@ -103,3 +103,25 @@ Stage Summary:
 - Bus SVG has realistic details (windows, wheels, headlights, destination sign, ID label)
 - Crowd Monitor completely redesigned to match CV-based interface from screenshot
 - 0 lint errors, 0 runtime errors, all verified via agent-browser
+
+---
+Task ID: 5
+Agent: Main Orchestrator
+Task: Fix crowd monitor canvas issues (people on bus, transparent shelter, unrealistic bus, wandering) + add rescue-bus-stuck alert
+
+Work Log:
+- Analyzed user screenshot with VLM: confirmed people (#1, #7, #13, #16) floating on bus, shelter transparent/invisible, bus unrealistic, people wandering
+- **People on bus fix**: Rewrote generatePeople() with 4 strict spawn zones that exclude the bus area entirely: Zone A (sidewalk near shelter entrance), Zone B (inside bus shelter), Zone C (far sidewalk/platform), Zone D (near bus front on sidewalk). Bus occupies x:8-46%, y:44-62% — all zones start at y:70% minimum.
+- **People wandering fix**: Reduced velocity from 0.25/0.15 to 0.02/0.015 (barely perceptible sway). Direction change probability reduced from 1% to 0.5%.
+- **Bus shelter fix**: Back panel opacity increased to 0.85. Glass panels opacity increased from 0.3 to 0.75 with 0.8 stroke. Added 3 vertical glass dividers, horizontal support bar, timetable sign board with route info.
+- **Bus realism fix**: Larger ground shadow (0.2 opacity), taller body (H*0.18), red/maroon decorative stripe, side mirror with arm (10x8px with glass), taller windows (55% bus height), amber front indicator light.
+- **Depth sorting**: People now sorted by Y position before drawing (painter's algorithm).
+- **Rescue bus stuck feature**: Added onRescueBusStuck callback to EmergencyPanel. When dispatch succeeds, 30% chance the rescue bus also gets stuck after 25-45 seconds. Creates new RESCUE_STUCK emergency with alert sound, toast notification (8s duration), and special 'RESCUE FAILED' badge in alerts feed. Timer cleanup on unmount.
+
+Stage Summary:
+- People no longer float on bus — all 4 spawn zones verified clear of bus area
+- Bus shelter now solid with visible glass panels, roof, supports, timetable
+- Bus has shadow, stripe, mirror, indicator light, taller windows
+- People nearly stationary (0.02px/frame velocity)
+- Rescue bus stuck: 30% chance after dispatch, new emergency + toast + alert badge
+- 0 lint errors, 0 runtime errors

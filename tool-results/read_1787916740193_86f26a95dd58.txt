@@ -1,0 +1,781 @@
+     1→'use client';
+     2→
+     3→import React, { useRef, useEffect, useState, useMemo } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Eye,
+     7→  Activity,
+     8→  Clock,
+     9→  ChevronDown,
+    10→  Wifi,
+    11→  Cpu,
+    12→  Monitor,
+    13→  BarChart3,
+    14→} from 'lucide-react';
+    15→import { Card, CardContent } from '@/components/ui/card';
+    16→import { Badge } from '@/components/ui/badge';
+    17→import {
+    18→  Select,
+    19→  SelectContent,
+    20→  SelectItem,
+    21→  SelectTrigger,
+    22→  SelectValue,
+    23→} from '@/components/ui/select';
+    24→import { crowdData, classifyDensity, simulateCrowdFluctuation } from '@/lib/mock-data';
+    25→
+    26→// ---------- Types ----------
+    27→interface Person {
+    28→  x: number;
+    29→  y: number;
+    30→  confidence: number;
+    31→  id: number;
+    32→  vx: number;
+    33→  vy: number;
+    34→  color: string; // clothing color
+    35→  bodyH: number;
+    36→  bodyW: number;
+    37→}
+    38→
+    39→// ---------- Helpers ----------
+    40→function generatePeople(count: number, canvasW: number, canvasH: number): Person[] {
+    41→  const people: Person[] = [];
+    42→  const clothingColors = [
+    43→    '#e91e63', // pink/magenta
+    44→    '#5d4037', // dark brown
+    45→    '#1b5e20', // dark olive
+    46→    '#0d47a1', // navy
+    47→    '#4a148c', // deep purple
+    48→    '#bf360c', // dark orange
+    49→    '#37474f', // blue grey
+    50→    '#212121', // near black
+    51→    '#f9a825', // amber
+    52→    '#00695c', // teal dark
+    53→  ];
+    54→
+    55→  // Define zones where people can appear
+    56→  const zones = [
+    57→    // On the road / near bus
+    58→    { xMin: 40, xMax: canvasW * 0.45, yMin: canvasH * 0.45, yMax: canvasH * 0.75 },
+    59→    // Near bus shelter
+    60→    { xMin: canvasW * 0.55, xMax: canvasW * 0.9, yMin: canvasH * 0.35, yMax: canvasH * 0.7 },
+    61→    // Platform / sidewalk
+    62→    { xMin: 40, xMax: canvasW * 0.9, yMin: canvasH * 0.72, yMax: canvasH * 0.88 },
+    63→  ];
+    64→
+    65→  for (let i = 0; i < count; i++) {
+    66→    const zone = zones[i % zones.length];
+    67→    const bw = 10 + Math.random() * 6;
+    68→    const bh = 20 + Math.random() * 10;
+    69→    people.push({
+    70→      x: zone.xMin + Math.random() * (zone.xMax - zone.xMin),
+    71→      y: zone.yMin + Math.random() * (zone.yMax - zone.yMin),
+    72→      confidence: 0.78 + Math.random() * 0.21,
+    73→      id: i + 1,
+    74→      vx: (Math.random() - 0.5) * 0.25,
+    75→      vy: (Math.random() - 0.5) * 0.15,
+    76→      color: clothingColors[Math.floor(Math.random() * clothingColors.length)],
+    77→      bodyH: bh,
+    78→      bodyW: bw,
+    79→    });
+    80→  }
+    81→  return people;
+    82→}
+    83→
+    84→function formatTime(d: Date): string {
+    85→  return d.toLocaleTimeString('en-IN', {
+    86→    hour12: false,
+    87→    hour: '2-digit',
+    88→    minute: '2-digit',
+    89→    second: '2-digit',
+    90→  });
+    91→}
+    92→
+    93→const DENSITY_CONFIG = {
+    94→  LOW: { color: '#22c55e', label: 'Low', bgClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    95→  MODERATE: { color: '#f59e0b', label: 'Moderate', bgClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
+    96→  HIGH: { color: '#ef4444', label: 'High', bgClass: 'bg-red-500/15 text-red-400 border-red-500/30' },
+    97→} as const;
+    98→
+    99→type DensityStatus = keyof typeof DENSITY_CONFIG;
+   100→
+   101→function generateHistory(current: number, points = 30) {
+   102→  const hist: number[] = [];
+   103→  for (let i = 0; i < points - 1; i++) {
+   104→    hist.push(Math.max(0, current + Math.floor(Math.random() * 8) - 4));
+   105→  }
+   106→  hist.push(current);
+   107→  return hist;
+   108→}
+   109→
+   110→// ---------- Component ----------
+   111→export function CrowdMonitor() {
+   112→  const canvasRef = useRef<HTMLCanvasElement>(null);
+   113→  const animFrameRef = useRef<number>(0);
+   114→  const peopleRef = useRef<Person[]>([]);
+   115→  const timeRef = useRef(new Date());
+   116→  const frameCountRef = useRef(0);
+   117→  const fpsRef = useRef(0);
+   118→  const lastFpsTimeRef = useRef(Date.now());
+   119→  const detectionTimerRef = useRef(0);
+   120→
+   121→  // Refs for animation loop
+   122→  const activeCrowdRef = useRef(crowdData[0]);
+   123→  const densityColorRef = useRef(DENSITY_CONFIG[crowdData[0].densityStatus].color);
+   124→  const densityStatusRef = useRef<DensityStatus>(crowdData[0].densityStatus);
+   125→  const liveCountRef = useRef(crowdData[0].currentCount);
+   126→
+   127→  const [selectedStop, setSelectedStop] = useState<string>(crowdData[0].stopId);
+   128→  const [liveCount, setLiveCount] = useState(crowdData[0].currentCount);
+   129→  const [history, setHistory] = useState(() =>
+   130→    generateHistory(crowdData[0].currentCount),
+   131→  );
+   132→  const [showCameraSelect, setShowCameraSelect] = useState(false);
+   133→
+   134→  const activeCrowd = useMemo(
+   135→    () => crowdData.find((c) => c.stopId === selectedStop) ?? crowdData[0],
+   136→    [selectedStop],
+   137→  );
+   138→
+   139→  const densityCfg = DENSITY_CONFIG[activeCrowd.densityStatus];
+   140→
+   141→  // Keep refs in sync
+   142→  useEffect(() => { activeCrowdRef.current = activeCrowd; }, [activeCrowd]);
+   143→  useEffect(() => { densityColorRef.current = densityCfg.color; }, [densityCfg.color]);
+   144→  useEffect(() => { densityStatusRef.current = activeCrowd.densityStatus; }, [activeCrowd.densityStatus]);
+   145→  useEffect(() => { liveCountRef.current = liveCount; }, [liveCount]);
+   146→
+   147→  // Regenerate people when stop changes
+   148→  useEffect(() => {
+   149→    const canvas = canvasRef.current;
+   150→    if (!canvas) return;
+   151→    const rect = canvas.getBoundingClientRect();
+   152→    peopleRef.current = generatePeople(liveCount, rect.width, rect.height);
+   153→  }, [selectedStop, liveCount]);
+   154→
+   155→  // Fluctuate count every 3s
+   156→  useEffect(() => {
+   157→    const base = activeCrowd.currentCount;
+   158→    const iv = setInterval(() => {
+   159→      const next = simulateCrowdFluctuation(base);
+   160→      setLiveCount(next);
+   161→      setHistory((h) => [...h.slice(1), next]);
+   162→    }, 3000);
+   163→    return () => clearInterval(iv);
+   164→  }, [activeCrowd.currentCount]);
+   165→
+   166→  // ---------- Canvas draw loop ----------
+   167→  useEffect(() => {
+   168→    function draw() {
+   169→      const canvas = canvasRef.current;
+   170→      if (!canvas) return;
+   171→      const ctx = canvas.getContext('2d');
+   172→      if (!ctx) return;
+   173→    const W = canvas.width / window.devicePixelRatio;
+   174→    const H = canvas.height / window.devicePixelRatio;
+   175→
+   176→    // FPS counter
+   177→    frameCountRef.current++;
+   178→    const now = Date.now();
+   179→    if (now - lastFpsTimeRef.current >= 1000) {
+   180→      fpsRef.current = frameCountRef.current;
+   181→      frameCountRef.current = 0;
+   182→      lastFpsTimeRef.current = now;
+   183→    }
+   184→    timeRef.current = new Date();
+   185→    detectionTimerRef.current += 1;
+   186→
+   187→    const crowd = activeCrowdRef.current;
+   188→    const dColor = densityColorRef.current;
+   189→    const dStatus = densityStatusRef.current;
+   190→    const count = liveCountRef.current;
+   191→
+   192→    ctx.save();
+   193→    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+   194→
+   195→    // ===== BACKGROUND: Light scene (like a real camera feed) =====
+   196→    // Sky / building backdrop
+   197→    const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.35);
+   198→    skyGrad.addColorStop(0, '#b8c4ce');
+   199→    skyGrad.addColorStop(1, '#a0aab4');
+   200→    ctx.fillStyle = skyGrad;
+   201→    ctx.fillRect(0, 0, W, H * 0.35);
+   202→
+   203→    // Buildings silhouette
+   204→    ctx.fillStyle = '#8a949e';
+   205→    const buildings = [
+   206→      { x: 0, w: W * 0.12, h: H * 0.25 },
+   207→      { x: W * 0.1, w: W * 0.08, h: H * 0.3 },
+   208→      { x: W * 0.16, w: W * 0.15, h: H * 0.22 },
+   209→      { x: W * 0.3, w: W * 0.1, h: H * 0.28 },
+   210→      { x: W * 0.38, w: W * 0.07, h: H * 0.2 },
+   211→      { x: W * 0.82, w: W * 0.18, h: H * 0.26 },
+   212→    ];
+   213→    for (const b of buildings) {
+   214→      ctx.fillRect(b.x, H * 0.35 - b.h, b.w, b.h);
+   215→      // Windows
+   216→      ctx.fillStyle = 'rgba(200,220,240,0.3)';
+   217→      for (let wy = H * 0.35 - b.h + 8; wy < H * 0.32; wy += 14) {
+   218→        for (let wx = b.x + 4; wx < b.x + b.w - 4; wx += 10) {
+   219→          ctx.fillRect(wx, wy, 6, 8);
+   220→        }
+   221→      }
+   222→      ctx.fillStyle = '#8a949e';
+   223→    }
+   224→
+   225→    // Ground / road area
+   226→    const groundGrad = ctx.createLinearGradient(0, H * 0.35, 0, H);
+   227→    groundGrad.addColorStop(0, '#c8cdd2');
+   228→    groundGrad.addColorStop(0.5, '#b0b8c0');
+   229→    groundGrad.addColorStop(1, '#a8b0b8');
+   230→    ctx.fillStyle = groundGrad;
+   231→    ctx.fillRect(0, H * 0.35, W, H * 0.65);
+   232→
+   233→    // Road surface
+   234→    ctx.fillStyle = '#7a828a';
+   235→    ctx.fillRect(0, H * 0.52, W, H * 0.22);
+   236→
+   237→    // Lane markings - dashed white center line
+   238→    ctx.setLineDash([20, 15]);
+   239→    ctx.strokeStyle = '#f0f0f0';
+   240→    ctx.lineWidth = 2;
+   241→    ctx.beginPath();
+   242→    ctx.moveTo(0, H * 0.63);
+   243→    ctx.lineTo(W, H * 0.63);
+   244→    ctx.stroke();
+   245→    ctx.setLineDash([]);
+   246→
+   247→    // Road edge - yellow line
+   248→    ctx.strokeStyle = '#e8b830';
+   249→    ctx.lineWidth = 2.5;
+   250→    ctx.beginPath();
+   251→    ctx.moveTo(0, H * 0.52);
+   252→    ctx.lineTo(W, H * 0.52);
+   253→    ctx.stroke();
+   254→
+   255→    // Sidewalk
+   256→    ctx.fillStyle = '#d0d4d8';
+   257→    ctx.fillRect(0, H * 0.74, W, H * 0.06);
+   258→    ctx.strokeStyle = '#b0b8c0';
+   259→    ctx.lineWidth = 1;
+   260→    ctx.beginPath();
+   261→    ctx.moveTo(0, H * 0.74);
+   262→    ctx.lineTo(W, H * 0.74);
+   263→    ctx.stroke();
+   264→    ctx.beginPath();
+   265→    ctx.moveTo(0, H * 0.80);
+   266→    ctx.lineTo(W, H * 0.80);
+   267→    ctx.stroke();
+   268→
+   269→    // Platform area (bottom)
+   270→    ctx.fillStyle = '#c0c8d0';
+   271→    ctx.fillRect(0, H * 0.80, W, H * 0.20);
+   272→
+   273→    // ===== BUS SHELTER =====
+   274→    const shelterX = W * 0.6;
+   275→    const shelterY = H * 0.30;
+   276→    const shelterW = W * 0.30;
+   277→    const shelterH = H * 0.48;
+   278→
+   279→    // Shelter back panel
+   280→    ctx.fillStyle = 'rgba(180,190,200,0.6)';
+   281→    ctx.fillRect(shelterX, shelterY, shelterW, shelterH);
+   282→    ctx.strokeStyle = 'rgba(140,155,170,0.5)';
+   283→    ctx.lineWidth = 1.5;
+   284→    ctx.strokeRect(shelterX, shelterY, shelterW, shelterH);
+   285→
+   286→    // Shelter roof
+   287→    ctx.fillStyle = 'rgba(100,115,130,0.7)';
+   288→    ctx.fillRect(shelterX - 8, shelterY, shelterW + 16, 6);
+   289→
+   290→    // Shelter roof supports
+   291→    ctx.strokeStyle = 'rgba(100,115,130,0.6)';
+   292→    ctx.lineWidth = 2;
+   293→    ctx.beginPath();
+   294→    ctx.moveTo(shelterX, shelterY + 6);
+   295→    ctx.lineTo(shelterX, shelterY + shelterH);
+   296→    ctx.stroke();
+   297→    ctx.beginPath();
+   298→    ctx.moveTo(shelterX + shelterW, shelterY + 6);
+   299→    ctx.lineTo(shelterX + shelterW, shelterY + shelterH);
+   300→    ctx.stroke();
+   301→
+   302→    // Shelter bench
+   303→    ctx.fillStyle = 'rgba(120,130,140,0.5)';
+   304→    ctx.fillRect(shelterX + 10, shelterY + shelterH - 20, shelterW - 20, 5);
+   305→
+   306→    // Shelter label
+   307→    ctx.font = '9px monospace';
+   308→    ctx.fillStyle = 'rgba(80,90,100,0.5)';
+   309→    ctx.fillText('BUS SHELTER', shelterX + 8, shelterY - 4);
+   310→
+   311→    // ===== YELLOW BUS =====
+   312→    const busX = W * 0.08;
+   313→    const busY = H * 0.44;
+   314→    const busW = W * 0.38;
+   315→    const busH = H * 0.16;
+   316→
+   317→    // Bus shadow
+   318→    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+   319→    ctx.beginPath();
+   320→    ctx.ellipse(busX + busW / 2, busY + busH + 4, busW * 0.45, 6, 0, 0, Math.PI * 2);
+   321→    ctx.fill();
+   322→
+   323→    // Bus body
+   324→    ctx.fillStyle = '#f5c518';
+   325→    ctx.beginPath();
+   326→    ctx.roundRect(busX, busY, busW, busH, [4, 4, 2, 2]);
+   327→    ctx.fill();
+   328→    ctx.strokeStyle = '#c9a20d';
+   329→    ctx.lineWidth = 1.5;
+   330→    ctx.stroke();
+   331→
+   332→    // Bus roof highlight
+   333→    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+   334→    ctx.fillRect(busX + 2, busY + 2, busW - 4, busH * 0.15);
+   335→
+   336→    // Bus windows
+   337→    ctx.fillStyle = '#2a3a5c';
+   338→    const winStartX = busX + busW * 0.2;
+   339→    const winW = busW * 0.1;
+   340→    const winH = busH * 0.45;
+   341→    const winY = busY + busH * 0.15;
+   342→    for (let i = 0; i < 5; i++) {
+   343→      ctx.fillRect(winStartX + i * (winW + 4), winY, winW, winH);
+   344→      // Window reflection
+   345→      ctx.fillStyle = 'rgba(150,180,220,0.15)';
+   346→      ctx.fillRect(winStartX + i * (winW + 4), winY, winW * 0.4, winH);
+   347→      ctx.fillStyle = '#2a3a5c';
+   348→    }
+   349→
+   350→    // Windshield
+   351→    ctx.fillStyle = '#1e3050';
+   352→    ctx.beginPath();
+   353→    ctx.roundRect(busX + busW * 0.04, winY, busW * 0.13, winH, 2);
+   354→    ctx.fill();
+   355→
+   356→    // Bus destination sign
+   357→    ctx.fillStyle = '#1a1a1a';
+   358→    ctx.fillRect(busX + 6, busY + 4, busW * 0.5, 12);
+   359→    ctx.font = 'bold 8px monospace';
+   360→    ctx.fillStyle = '#f5c518';
+   361→    ctx.fillText(crowd.stopName.toUpperCase(), busX + 10, busY + 13);
+   362→
+   363→    // Bus wheels
+   364→    ctx.fillStyle = '#1a1a1a';
+   365→    ctx.beginPath(); ctx.arc(busX + busW * 0.18, busY + busH + 1, 6, 0, Math.PI * 2); ctx.fill();
+   366→    ctx.beginPath(); ctx.arc(busX + busW * 0.82, busY + busH + 1, 6, 0, Math.PI * 2); ctx.fill();
+   367→    // Wheel hubcaps
+   368→    ctx.fillStyle = '#555';
+   369→    ctx.beginPath(); ctx.arc(busX + busW * 0.18, busY + busH + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+   370→    ctx.beginPath(); ctx.arc(busX + busW * 0.82, busY + busH + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+   371→
+   372→    // ===== MOVE PEOPLE =====
+   373→    const people = peopleRef.current;
+   374→    const updated = people.map((p) => {
+   375→      let nx = p.x + p.vx;
+   376→      let ny = p.y + p.vy;
+   377→      let nvx = p.vx;
+   378→      let nvy = p.vy;
+   379→      // Keep within their zones
+   380→      if (nx < 30 || nx > W - 30) nvx *= -1;
+   381→      if (ny < H * 0.35 || ny > H * 0.92) nvy *= -1;
+   382→      // Slight random direction change
+   383→      if (Math.random() < 0.01) {
+   384→        nvx = (Math.random() - 0.5) * 0.25;
+   385→        nvy = (Math.random() - 0.5) * 0.15;
+   386→      }
+   387→      nx = Math.max(30, Math.min(W - 30, nx));
+   388→      ny = Math.max(H * 0.35, Math.min(H * 0.92, ny));
+   389→      return { ...p, x: nx, y: ny, vx: nvx, vy: nvy };
+   390→    });
+   391→    peopleRef.current = updated;
+   392→
+   393→    // ===== DRAW PEOPLE + BOUNDING BOXES =====
+   394→    for (const p of updated) {
+   395→      const boxPad = 8;
+   396→      const bx = p.x - p.bodyW / 2 - boxPad;
+   397→      const by = p.y - p.bodyH - 10 - boxPad;
+   398→      const bw = p.bodyW + boxPad * 2;
+   399→      const bh = p.bodyH + 14 + boxPad * 2;
+   400→
+   401→      // Person silhouette (simple body shape)
+   402→      // Head
+   403→      ctx.fillStyle = p.color;
+   404→      ctx.beginPath();
+   405→      ctx.ellipse(p.x, p.y - p.bodyH - 6, p.bodyW * 0.35, p.bodyW * 0.4, 0, 0, Math.PI * 2);
+   406→      ctx.fill();
+   407→      // Body
+   408→      ctx.fillRect(p.x - p.bodyW / 2, p.y - p.bodyH, p.bodyW, p.bodyH);
+   409→      // Legs
+   410→      ctx.fillStyle = '#3a4a5a';
+   411→      ctx.fillRect(p.x - p.bodyW / 2 + 1, p.y, p.bodyW * 0.4, 8);
+   412→      ctx.fillRect(p.x + 1, p.y, p.bodyW * 0.4, 8);
+   413→
+   414→      // Teal bounding box
+   415→      ctx.strokeStyle = 'rgba(20,184,166,0.85)';
+   416→      ctx.lineWidth = 1.5;
+   417→      ctx.strokeRect(bx, by, bw, bh);
+   418→
+   419→      // Corner brackets (teal, thicker)
+   420→      const cl = 7;
+   421→      ctx.strokeStyle = '#14b8a6';
+   422→      ctx.lineWidth = 2.5;
+   423→      // Top-left
+   424→      ctx.beginPath(); ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by); ctx.stroke();
+   425→      // Top-right
+   426→      ctx.beginPath(); ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl); ctx.stroke();
+   427→      // Bottom-left
+   428→      ctx.beginPath(); ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh); ctx.stroke();
+   429→      // Bottom-right
+   430→      ctx.beginPath(); ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl); ctx.stroke();
+   431→
+   432→      // Label badge: #ID
+   433→      const label = `#${p.id}`;
+   434→      ctx.font = 'bold 9px monospace';
+   435→      const tw = ctx.measureText(label).width;
+   436→      const labelW = tw + 8;
+   437→      ctx.fillStyle = 'rgba(20,184,166,0.9)';
+   438→      ctx.beginPath();
+   439→      ctx.roundRect(bx, by - 14, labelW, 13, 2);
+   440→      ctx.fill();
+   441→      ctx.fillStyle = '#ffffff';
+   442→      ctx.fillText(label, bx + 4, by - 4);
+   443→
+   444→      // Confidence % at bottom of box
+   445→      const confText = `${(p.confidence * 100).toFixed(0)}%`;
+   446→      ctx.font = '8px monospace';
+   447→      const cw = ctx.measureText(confText).width;
+   448→      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+   449→      ctx.beginPath();
+   450→      ctx.roundRect(bx, by + bh + 2, cw + 6, 11, 2);
+   451→      ctx.fill();
+   452→      ctx.fillStyle = 'rgba(20,184,166,0.9)';
+   453→      ctx.fillText(confText, bx + 3, by + bh + 10);
+   454→    }
+   455→
+   456→    // ===== BOTTOM CLASSIFICATION BAR =====
+   457→    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+   458→    ctx.fillRect(0, H - 28, W, 28);
+   459→    ctx.font = '9px monospace';
+   460→    ctx.fillStyle = 'rgba(20,184,166,0.7)';
+   461→    ctx.fillText('CLASSIFICATION: YOLOv8-Person', 10, H - 12);
+   462→    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+   463→    ctx.fillText(`CONF THRESHOLD: 0.75`, 190, H - 12);
+   464→    ctx.fillText(`NMS IOU: 0.45`, 330, H - 12);
+   465→    ctx.fillStyle = dColor;
+   466→    ctx.font = 'bold 9px monospace';
+   467→    ctx.fillText(`DENSITY: ${dStatus.toUpperCase()}`, 450, H - 12);
+   468→
+   469→    // ===== CV OVERLAY: Timestamp + CAM info (bottom-right) =====
+   470→    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+   471→    const tsText = `${formatTime(timeRef.current)}  |  ${fpsRef.current} FPS`;
+   472→    ctx.font = '9px monospace';
+   473→    const tsW = ctx.measureText(tsText).width;
+   474→    ctx.fillRect(W - tsW - 16, H - 28, tsW + 16, 28);
+   475→    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+   476→    ctx.fillText(tsText, W - tsW - 10, H - 12);
+   477→
+   478→    ctx.restore();
+   479→      animFrameRef.current = requestAnimationFrame(draw);
+   480→    }
+   481→
+   482→    animFrameRef.current = requestAnimationFrame(draw);
+   483→    return () => cancelAnimationFrame(animFrameRef.current);
+   484→  }, []);
+   485→
+   486→  // Handle canvas resize
+   487→  useEffect(() => {
+   488→    const canvas = canvasRef.current;
+   489→    if (!canvas) return;
+   490→    const ro = new ResizeObserver(() => {
+   491→      const rect = canvas.getBoundingClientRect();
+   492→      canvas.width = rect.width * window.devicePixelRatio;
+   493→      canvas.height = rect.height * window.devicePixelRatio;
+   494→      peopleRef.current = generatePeople(liveCount, rect.width, rect.height);
+   495→    });
+   496→    ro.observe(canvas);
+   497→    return () => ro.disconnect();
+   498→  }, [liveCount]);
+   499→
+   500→  const maxHist = Math.max(...history, 1);
+   501→
+   502→  return (
+   503→    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6 w-full">
+   504→      {/* ---- LEFT: CV Camera Feed ---- */}
+   505→      <motion.div
+   506→        className="lg:col-span-3"
+   507→        initial={{ opacity: 0, x: -20 }}
+   508→        animate={{ opacity: 1, x: 0 }}
+   509→        transition={{ duration: 0.5 }}
+   510→      >
+   511→        <Card className="overflow-hidden border-white/10 bg-[#0f1214]">
+   512→          {/* Top header bar - matches screenshot style */}
+   513→          <div className="flex items-center justify-between px-4 py-2.5 bg-[#0a0d0f] border-b border-white/5">
+   514→            <div className="flex items-center gap-2.5">
+   515→              <div className="flex items-center justify-center size-7 rounded-md bg-emerald-500/15">
+   516→                <Eye className="size-4 text-emerald-400" />
+   517→              </div>
+   518→              <span className="text-sm font-semibold text-white/90">
+   519→                Passenger Density <span className="text-white/40 font-normal">·</span>{' '}
+   520→                <span className="text-white/50 font-medium">Computer Vision</span>
+   521→              </span>
+   522→            </div>
+   523→
+   524→            <div className="flex items-center gap-3">
+   525→              {/* Density status badge */}
+   526→              <Badge
+   527→                variant="outline"
+   528→                className={`text-[10px] font-bold px-2.5 py-0.5 border ${densityCfg.bgClass}`}
+   529→              >
+   530→                {densityCfg.label.toUpperCase()}
+   531→              </Badge>
+   532→              <span className="text-xs text-white/70 font-medium">
+   533→                {liveCount} detected
+   534→              </span>
+   535→
+   536→              {/* Camera selector - pill style */}
+   537→              <div className="relative">
+   538→                <button
+   539→                  onClick={() => setShowCameraSelect(!showCameraSelect)}
+   540→                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-teal-500/30 bg-teal-500/5 text-xs text-white/80 hover:bg-teal-500/10 transition-colors"
+   541→                >
+   542→                  <span className="text-teal-400 font-mono text-[10px]">{activeCrowd.cameraId}</span>
+   543→                  <span className="text-white/40">·</span>
+   544→                  <span>{activeCrowd.stopName}</span>
+   545→                  <ChevronDown className={`size-3 text-white/40 transition-transform ${showCameraSelect ? 'rotate-180' : ''}`} />
+   546→                </button>
+   547→                {showCameraSelect && (
+   548→                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[220px] rounded-lg border border-white/10 bg-[#111a16] py-1 shadow-xl">
+   549→                    {crowdData.map((c) => {
+   550→                      const cfg = DENSITY_CONFIG[c.densityStatus];
+   551→                      return (
+   552→                        <button
+   553→                          key={c.stopId}
+   554→                          onClick={() => { setSelectedStop(c.stopId); setShowCameraSelect(false); }}
+   555→                          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-white/5 transition-colors"
+   556→                        >
+   557→                          <span className="size-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+   558→                          <span className="text-xs text-white/80 font-mono">{c.cameraId}</span>
+   559→                          <span className="text-xs text-white/50">·</span>
+   560→                          <span className="text-xs text-white/70">{c.stopName}</span>
+   561→                        </button>
+   562→                      );
+   563→                    })}
+   564→                  </div>
+   565→                )}
+   566→              </div>
+   567→            </div>
+   568→          </div>
+   569→
+   570→          {/* Canvas */}
+   571→          <CardContent className="p-0 relative">
+   572→            <canvas
+   573→              ref={canvasRef}
+   574→              className="w-full h-[380px] sm:h-[440px] lg:h-[480px] block"
+   575→            />
+   576→            {/* LIVE indicator overlay */}
+   577→            <motion.div
+   578→              className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded bg-red-500/20 backdrop-blur-sm"
+   579→              animate={{ opacity: [1, 0.6, 1] }}
+   580→              transition={{ repeat: Infinity, duration: 1.5 }}
+   581→            >
+   582→              <span className="size-2 rounded-full bg-red-500" />
+   583→              <span className="text-[10px] font-bold text-red-400 tracking-wider">LIVE</span>
+   584→            </motion.div>
+   585→          </CardContent>
+   586→        </Card>
+   587→      </motion.div>
+   588→
+   589→      {/* ---- RIGHT: Stats Panel ---- */}
+   590→      <motion.div
+   591→        className="lg:col-span-2 flex flex-col gap-4"
+   592→        initial={{ opacity: 0, x: 20 }}
+   593→        animate={{ opacity: 1, x: 0 }}
+   594→        transition={{ duration: 0.5, delay: 0.15 }}
+   595→      >
+   596→        {/* Live Count - Large gauge style */}
+   597→        <Card className="border-white/10 bg-[#0f1214]">
+   598→          <CardContent className="p-5">
+   599→            <div className="flex items-center justify-between mb-1">
+   600→              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+   601→                Passengers Detected
+   602→              </span>
+   603→              <motion.div
+   604→                className="size-2.5 rounded-full"
+   605→                style={{ backgroundColor: densityCfg.color }}
+   606→                animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
+   607→                transition={{ repeat: Infinity, duration: 2 }}
+   608→              />
+   609→            </div>
+   610→            <div className="flex items-end gap-3 mt-2">
+   611→              <motion.span
+   612→                key={liveCount}
+   613→                className="text-6xl font-bold tabular-nums tracking-tight"
+   614→                style={{ color: densityCfg.color }}
+   615→                initial={{ y: -12, opacity: 0 }}
+   616→                animate={{ y: 0, opacity: 1 }}
+   617→                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+   618→              >
+   619→                {liveCount}
+   620→              </motion.span>
+   621→              <span className="text-white/30 text-sm mb-2 font-medium">people</span>
+   622→            </div>
+   623→            {/* Density level bar */}
+   624→            <div className="mt-4 space-y-2">
+   625→              <div className="flex items-center justify-between">
+   626→                <span className="text-[10px] text-white/30 uppercase tracking-wider">Density Level</span>
+   627→                <Badge
+   628→                  variant="outline"
+   629→                  className={`text-[10px] font-bold px-2 py-0 border ${densityCfg.bgClass}`}
+   630→                >
+   631→                  {densityCfg.label}
+   632→                </Badge>
+   633→              </div>
+   634→              <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+   635→                <motion.div
+   636→                  className="h-full rounded-full"
+   637→                  style={{ backgroundColor: densityCfg.color }}
+   638→                  animate={{
+   639→                    width: `${Math.min((liveCount / 25) * 100, 100)}%`,
+   640→                  }}
+   641→                  transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+   642→                />
+   643→              </div>
+   644→              <div className="flex justify-between text-[9px] text-white/20 tabular-nums">
+   645→                <span>0</span>
+   646→                <span>LOW</span>
+   647→                <span>MODERATE</span>
+   648→                <span>HIGH</span>
+   649→                <span>25+</span>
+   650→              </div>
+   651→            </div>
+   652→          </CardContent>
+   653→        </Card>
+   654→
+   655→        {/* System Status Indicators */}
+   656→        <Card className="border-white/10 bg-[#0f1214]">
+   657→          <CardContent className="p-4">
+   658→            <div className="flex items-center gap-2 mb-3">
+   659→              <Cpu className="size-3.5 text-teal-400" />
+   660→              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+   661→                System Status
+   662→              </span>
+   663→            </div>
+   664→            <div className="grid grid-cols-2 gap-3">
+   665→              <div className="flex items-center gap-2">
+   666→                <Wifi className="size-3.5 text-emerald-400" />
+   667→                <div>
+   668→                  <p className="text-[10px] text-white/30">Stream</p>
+   669→                  <p className="text-xs text-emerald-400 font-semibold">Connected</p>
+   670→                </div>
+   671→              </div>
+   672→              <div className="flex items-center gap-2">
+   673→                <Monitor className="size-3.5 text-emerald-400" />
+   674→                <div>
+   675→                  <p className="text-[10px] text-white/30">Model</p>
+   676→                  <p className="text-xs text-white/70 font-mono">YOLOv8</p>
+   677→                </div>
+   678→              </div>
+   679→              <div className="flex items-center gap-2">
+   680→                <Activity className="size-3.5 text-emerald-400" />
+   681→                <div>
+   682→                  <p className="text-[10px] text-white/30">Inference</p>
+   683→                  <p className="text-xs text-white/70 font-mono">~33ms</p>
+   684→                </div>
+   685→              </div>
+   686→              <div className="flex items-center gap-2">
+   687→                <BarChart3 className="size-3.5 text-amber-400" />
+   688→                <div>
+   689→                  <p className="text-[10px] text-white/30">Accuracy</p>
+   690→                  <p className="text-xs text-amber-400 font-semibold">94.2%</p>
+   691→                </div>
+   692→              </div>
+   693→            </div>
+   694→          </CardContent>
+   695→        </Card>
+   696→
+   697→        {/* Density History Sparkline */}
+   698→        <Card className="border-white/10 bg-[#0f1214]">
+   699→          <CardContent className="p-4">
+   700→            <div className="flex items-center justify-between mb-3">
+   701→              <div className="flex items-center gap-2">
+   702→                <Activity className="size-3.5 text-teal-400" />
+   703→                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+   704→                  Density Trend
+   705→                </span>
+   706→              </div>
+   707→              <div className="flex items-center gap-1 text-white/20">
+   708→                <Clock className="size-3" />
+   709→                <span className="text-[9px] font-mono">Last {history.length * 3}s</span>
+   710→              </div>
+   711→            </div>
+   712→            <div className="flex items-end gap-[2px] h-14">
+   713→              {history.map((val, i) => {
+   714→                const h = Math.max(3, (val / maxHist) * 100);
+   715→                const isLast = i === history.length - 1;
+   716→                return (
+   717→                  <motion.div
+   718→                    key={`${selectedStop}-${i}`}
+   719→                    className="flex-1 rounded-t-sm min-w-[4px]"
+   720→                    style={{
+   721→                      backgroundColor: isLast
+   722→                        ? densityCfg.color
+   723→                        : `${densityCfg.color}33`,
+   724→                    }}
+   725→                    initial={{ height: 0 }}
+   726→                    animate={{ height: `${h}%` }}
+   727→                    transition={{ duration: 0.3, delay: i * 0.015 }}
+   728→                  />
+   729→                );
+   730→              })}
+   731→            </div>
+   732→          </CardContent>
+   733→        </Card>
+   734→
+   735→        {/* All Monitored Stops */}
+   736→        <Card className="border-white/10 bg-[#0f1214]">
+   737→          <CardContent className="p-4">
+   738→            <div className="flex items-center gap-2 mb-3">
+   739→              <Eye className="size-3.5 text-teal-400" />
+   740→              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+   741→                All Cameras
+   742→              </span>
+   743→            </div>
+   744→            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
+   745→              {crowdData.map((c) => {
+   746→                const cfg = DENSITY_CONFIG[c.densityStatus];
+   747→                const isActive = c.stopId === selectedStop;
+   748→                return (
+   749→                  <motion.button
+   750→                    key={c.stopId}
+   751→                    onClick={() => setSelectedStop(c.stopId)}
+   752→                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all w-full ${
+   753→                      isActive
+   754→                        ? 'bg-white/8 ring-1 ring-white/10'
+   755→                        : 'hover:bg-white/3'
+   756→                    }`}
+   757→                    whileHover={{ x: 2 }}
+   758→                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+   759→                  >
+   760→                    <span
+   761→                      className="size-2 rounded-full shrink-0"
+   762→                      style={{ backgroundColor: cfg.color }}
+   763→                    />
+   764→                    <span className="text-[10px] text-white/30 font-mono shrink-0">{c.cameraId}</span>
+   765→                    <span className="text-xs text-white/70 truncate flex-1">{c.stopName}</span>
+   766→                    <span
+   767→                      className="text-xs font-bold tabular-nums shrink-0"
+   768→                      style={{ color: cfg.color }}
+   769→                    >
+   770→                      {c.currentCount}
+   771→                    </span>
+   772→                  </motion.button>
+   773→                );
+   774→              })}
+   775→            </div>
+   776→          </CardContent>
+   777→        </Card>
+   778→      </motion.div>
+   779→    </div>
+   780→  );
+   781→}

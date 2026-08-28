@@ -52,14 +52,16 @@ function generatePeople(count: number, canvasW: number, canvasH: number): Person
     '#00695c', // teal dark
   ];
 
-  // Define zones where people can appear
+  // Define zones where people's FEET can appear (body extends upward from y)
   const zones = [
-    // On the road / near bus
-    { xMin: 40, xMax: canvasW * 0.45, yMin: canvasH * 0.45, yMax: canvasH * 0.75 },
-    // Near bus shelter
-    { xMin: canvasW * 0.55, xMax: canvasW * 0.9, yMin: canvasH * 0.35, yMax: canvasH * 0.7 },
-    // Platform / sidewalk
-    { xMin: 40, xMax: canvasW * 0.9, yMin: canvasH * 0.72, yMax: canvasH * 0.88 },
+    // Zone A: near bus shelter entrance (sidewalk)
+    { xMin: canvasW * 0.55, xMax: canvasW * 0.65, yMin: canvasH * 0.70, yMax: canvasH * 0.78 },
+    // Zone B: inside bus shelter
+    { xMin: canvasW * 0.62, xMax: canvasW * 0.88, yMin: canvasH * 0.40, yMax: canvasH * 0.72 },
+    // Zone C: platform/far sidewalk (below road)
+    { xMin: canvasW * 0.15, xMax: canvasW * 0.45, yMin: canvasH * 0.76, yMax: canvasH * 0.90 },
+    // Zone D: near bus front, on sidewalk
+    { xMin: canvasW * 0.02, xMax: canvasW * 0.12, yMin: canvasH * 0.70, yMax: canvasH * 0.80 },
   ];
 
   for (let i = 0; i < count; i++) {
@@ -71,8 +73,8 @@ function generatePeople(count: number, canvasW: number, canvasH: number): Person
       y: zone.yMin + Math.random() * (zone.yMax - zone.yMin),
       confidence: 0.78 + Math.random() * 0.21,
       id: i + 1,
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: (Math.random() - 0.5) * 0.15,
+      vx: (Math.random() - 0.5) * 0.02,
+      vy: (Math.random() - 0.5) * 0.015,
       color: clothingColors[Math.floor(Math.random() * clothingColors.length)],
       bodyH: bh,
       bodyW: bw,
@@ -276,28 +278,67 @@ export function CrowdMonitor() {
     const shelterW = W * 0.30;
     const shelterH = H * 0.48;
 
-    // Shelter back panel
-    ctx.fillStyle = 'rgba(180,190,200,0.6)';
+    // Shelter back panel - SOLID and visible
+    ctx.fillStyle = 'rgba(160,175,190,0.85)';
     ctx.fillRect(shelterX, shelterY, shelterW, shelterH);
     ctx.strokeStyle = 'rgba(140,155,170,0.5)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(shelterX, shelterY, shelterW, shelterH);
 
-    // Shelter roof
-    ctx.fillStyle = 'rgba(100,115,130,0.7)';
-    ctx.fillRect(shelterX - 8, shelterY, shelterW + 16, 6);
+    // Glass panels inside shelter
+    const glassCount = 3;
+    const glassGap = shelterW / (glassCount + 1);
+    for (let gi = 1; gi <= glassCount; gi++) {
+      const gx = shelterX + gi * glassGap - 4;
+      const gy = shelterY + 10;
+      const gw = 8;
+      const gh = shelterH - 30;
+      ctx.fillStyle = 'rgba(140,180,210,0.75)';
+      ctx.fillRect(gx, gy, gw, gh);
+      ctx.strokeStyle = 'rgba(120,150,180,0.8)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(gx, gy, gw, gh);
+    }
+
+    // Shelter roof - thicker and darker
+    ctx.fillStyle = 'rgba(80,95,110,0.9)';
+    ctx.fillRect(shelterX - 8, shelterY, shelterW + 16, 8);
 
     // Shelter roof supports
-    ctx.strokeStyle = 'rgba(100,115,130,0.6)';
+    ctx.strokeStyle = 'rgba(80,95,110,0.7)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(shelterX, shelterY + 6);
+    ctx.moveTo(shelterX, shelterY + 8);
     ctx.lineTo(shelterX, shelterY + shelterH);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(shelterX + shelterW, shelterY + 6);
+    ctx.moveTo(shelterX + shelterW, shelterY + 8);
     ctx.lineTo(shelterX + shelterW, shelterY + shelterH);
     ctx.stroke();
+
+    // Horizontal support bar in the middle of the shelter
+    ctx.strokeStyle = 'rgba(100,115,130,0.7)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(shelterX, shelterY + shelterH * 0.5);
+    ctx.lineTo(shelterX + shelterW, shelterY + shelterH * 0.5);
+    ctx.stroke();
+
+    // Timetable / sign board inside shelter
+    const tbX = shelterX + shelterW * 0.6;
+    const tbY = shelterY + 14;
+    const tbW = shelterW * 0.32;
+    const tbH = 18;
+    ctx.fillStyle = 'rgba(220,230,240,0.9)';
+    ctx.fillRect(tbX, tbY, tbW, tbH);
+    ctx.strokeStyle = 'rgba(140,150,160,0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tbX, tbY, tbW, tbH);
+    // Timetable text lines
+    ctx.fillStyle = 'rgba(60,70,80,0.6)';
+    ctx.font = '6px monospace';
+    ctx.fillText('ROUTE 42', tbX + 3, tbY + 7);
+    ctx.fillText('12:30  12:45', tbX + 3, tbY + 15);
 
     // Shelter bench
     ctx.fillStyle = 'rgba(120,130,140,0.5)';
@@ -312,15 +353,15 @@ export function CrowdMonitor() {
     const busX = W * 0.08;
     const busY = H * 0.44;
     const busW = W * 0.38;
-    const busH = H * 0.16;
+    const busH = H * 0.18;
 
-    // Bus shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    // Bus ground shadow - larger and more prominent
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
     ctx.beginPath();
-    ctx.ellipse(busX + busW / 2, busY + busH + 4, busW * 0.45, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(busX + busW / 2, busY + busH + 5, busW * 0.48, 9, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Bus body
+    // Bus body - taller
     ctx.fillStyle = '#f5c518';
     ctx.beginPath();
     ctx.roundRect(busX, busY, busW, busH, [4, 4, 2, 2]);
@@ -331,27 +372,54 @@ export function CrowdMonitor() {
 
     // Bus roof highlight
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(busX + 2, busY + 2, busW - 4, busH * 0.15);
+    ctx.fillRect(busX + 2, busY + 2, busW - 4, busH * 0.12);
 
-    // Bus windows
+    // Decorative band / horizontal stripe along the middle
+    ctx.fillStyle = '#8b1a1a';
+    ctx.fillRect(busX, busY + busH * 0.55, busW, busH * 0.08);
+
+    // Bus windows - taller and more prominent
     ctx.fillStyle = '#2a3a5c';
     const winStartX = busX + busW * 0.2;
     const winW = busW * 0.1;
-    const winH = busH * 0.45;
-    const winY = busY + busH * 0.15;
+    const winH = busH * 0.55;
+    const winY = busY + busH * 0.12;
     for (let i = 0; i < 5; i++) {
       ctx.fillRect(winStartX + i * (winW + 4), winY, winW, winH);
+      // Window frame
+      ctx.strokeStyle = '#c9a20d';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(winStartX + i * (winW + 4), winY, winW, winH);
       // Window reflection
-      ctx.fillStyle = 'rgba(150,180,220,0.15)';
+      ctx.fillStyle = 'rgba(150,180,220,0.2)';
       ctx.fillRect(winStartX + i * (winW + 4), winY, winW * 0.4, winH);
       ctx.fillStyle = '#2a3a5c';
     }
 
-    // Windshield
+    // Windshield - taller
     ctx.fillStyle = '#1e3050';
     ctx.beginPath();
     ctx.roundRect(busX + busW * 0.04, winY, busW * 0.13, winH, 2);
     ctx.fill();
+    ctx.strokeStyle = '#c9a20d';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Side mirror - protruding from the front with arm
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(busX, busY + busH * 0.22);
+    ctx.lineTo(busX - 12, busY + busH * 0.18);
+    ctx.stroke();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(busX - 15, busY + busH * 0.12, 10, 8);
+    ctx.fillStyle = 'rgba(100,140,180,0.5)';
+    ctx.fillRect(busX - 14, busY + busH * 0.13, 8, 6);
+
+    // Front indicator light (amber/yellow)
+    ctx.fillStyle = '#f5a623';
+    ctx.fillRect(busX, busY + busH * 0.7, 4, 5);
 
     // Bus destination sign
     ctx.fillStyle = '#1a1a1a';
@@ -380,9 +448,9 @@ export function CrowdMonitor() {
       if (nx < 30 || nx > W - 30) nvx *= -1;
       if (ny < H * 0.35 || ny > H * 0.92) nvy *= -1;
       // Slight random direction change
-      if (Math.random() < 0.01) {
-        nvx = (Math.random() - 0.5) * 0.25;
-        nvy = (Math.random() - 0.5) * 0.15;
+      if (Math.random() < 0.005) {
+        nvx = (Math.random() - 0.5) * 0.02;
+        nvy = (Math.random() - 0.5) * 0.015;
       }
       nx = Math.max(30, Math.min(W - 30, nx));
       ny = Math.max(H * 0.35, Math.min(H * 0.92, ny));
@@ -390,8 +458,9 @@ export function CrowdMonitor() {
     });
     peopleRef.current = updated;
 
-    // ===== DRAW PEOPLE + BOUNDING BOXES =====
-    for (const p of updated) {
+    // ===== DRAW PEOPLE + BOUNDING BOXES (sorted by Y - painter's algorithm) =====
+    const sortedPeople = [...updated].sort((a, b) => a.y - b.y);
+    for (const p of sortedPeople) {
       const boxPad = 8;
       const bx = p.x - p.bodyW / 2 - boxPad;
       const by = p.y - p.bodyH - 10 - boxPad;
