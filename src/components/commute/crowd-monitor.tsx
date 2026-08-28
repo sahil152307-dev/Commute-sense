@@ -3,18 +3,16 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Camera,
-  Users,
-  AlertTriangle,
-  ShieldCheck,
-  Activity,
   Eye,
-  TrendingUp,
+  Activity,
   Clock,
-  Radio,
-  ChevronRight,
+  ChevronDown,
+  Wifi,
+  Cpu,
+  Monitor,
+  BarChart3,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -33,20 +31,51 @@ interface Person {
   id: number;
   vx: number;
   vy: number;
+  color: string; // clothing color
+  bodyH: number;
+  bodyW: number;
 }
 
 // ---------- Helpers ----------
 function generatePeople(count: number, canvasW: number, canvasH: number): Person[] {
-  const margin = 40;
   const people: Person[] = [];
+  const clothingColors = [
+    '#e91e63', // pink/magenta
+    '#5d4037', // dark brown
+    '#1b5e20', // dark olive
+    '#0d47a1', // navy
+    '#4a148c', // deep purple
+    '#bf360c', // dark orange
+    '#37474f', // blue grey
+    '#212121', // near black
+    '#f9a825', // amber
+    '#00695c', // teal dark
+  ];
+
+  // Define zones where people can appear
+  const zones = [
+    // On the road / near bus
+    { xMin: 40, xMax: canvasW * 0.45, yMin: canvasH * 0.45, yMax: canvasH * 0.75 },
+    // Near bus shelter
+    { xMin: canvasW * 0.55, xMax: canvasW * 0.9, yMin: canvasH * 0.35, yMax: canvasH * 0.7 },
+    // Platform / sidewalk
+    { xMin: 40, xMax: canvasW * 0.9, yMin: canvasH * 0.72, yMax: canvasH * 0.88 },
+  ];
+
   for (let i = 0; i < count; i++) {
+    const zone = zones[i % zones.length];
+    const bw = 10 + Math.random() * 6;
+    const bh = 20 + Math.random() * 10;
     people.push({
-      x: margin + Math.random() * (canvasW - 2 * margin - 20),
-      y: margin + Math.random() * (canvasH - 2 * margin - 50),
-      confidence: 0.82 + Math.random() * 0.17,
-      id: i,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.3,
+      x: zone.xMin + Math.random() * (zone.xMax - zone.xMin),
+      y: zone.yMin + Math.random() * (zone.yMax - zone.yMin),
+      confidence: 0.78 + Math.random() * 0.21,
+      id: i + 1,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.15,
+      color: clothingColors[Math.floor(Math.random() * clothingColors.length)],
+      bodyH: bh,
+      bodyW: bw,
     });
   }
   return people;
@@ -61,26 +90,18 @@ function formatTime(d: Date): string {
   });
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
 const DENSITY_CONFIG = {
-  LOW: { color: '#22c55e', label: 'Low', glow: 'rgba(34,197,94,0.25)' },
-  MODERATE: { color: '#f59e0b', label: 'Moderate', glow: 'rgba(245,158,11,0.25)' },
-  HIGH: { color: '#ef4444', label: 'High', glow: 'rgba(239,68,68,0.3)' },
+  LOW: { color: '#22c55e', label: 'Low', bgClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+  MODERATE: { color: '#f59e0b', label: 'Moderate', bgClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
+  HIGH: { color: '#ef4444', label: 'High', bgClass: 'bg-red-500/15 text-red-400 border-red-500/30' },
 } as const;
 
 type DensityStatus = keyof typeof DENSITY_CONFIG;
 
-function generateHistory(current: number, points = 20) {
+function generateHistory(current: number, points = 30) {
   const hist: number[] = [];
   for (let i = 0; i < points - 1; i++) {
-    hist.push(Math.max(0, current + Math.floor(Math.random() * 10) - 5));
+    hist.push(Math.max(0, current + Math.floor(Math.random() * 8) - 4));
   }
   hist.push(current);
   return hist;
@@ -91,36 +112,37 @@ export function CrowdMonitor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const peopleRef = useRef<Person[]>([]);
-  const scanlineYRef = useRef(0);
   const timeRef = useRef(new Date());
   const frameCountRef = useRef(0);
   const fpsRef = useRef(0);
   const lastFpsTimeRef = useRef(Date.now());
+  const detectionTimerRef = useRef(0);
 
-  // Refs to pass reactive data into the animation loop
+  // Refs for animation loop
   const activeCrowdRef = useRef(crowdData[0]);
   const densityColorRef = useRef(DENSITY_CONFIG[crowdData[0].densityStatus].color);
   const densityStatusRef = useRef<DensityStatus>(crowdData[0].densityStatus);
+  const liveCountRef = useRef(crowdData[0].currentCount);
 
   const [selectedStop, setSelectedStop] = useState<string>(crowdData[0].stopId);
   const [liveCount, setLiveCount] = useState(crowdData[0].currentCount);
   const [history, setHistory] = useState(() =>
     generateHistory(crowdData[0].currentCount),
   );
+  const [showCameraSelect, setShowCameraSelect] = useState(false);
 
   const activeCrowd = useMemo(
     () => crowdData.find((c) => c.stopId === selectedStop) ?? crowdData[0],
     [selectedStop],
   );
 
-  const density = useMemo(() => classifyDensity(liveCount), [liveCount]);
-
   const densityCfg = DENSITY_CONFIG[activeCrowd.densityStatus];
 
-  // Keep refs in sync with reactive values
+  // Keep refs in sync
   useEffect(() => { activeCrowdRef.current = activeCrowd; }, [activeCrowd]);
   useEffect(() => { densityColorRef.current = densityCfg.color; }, [densityCfg.color]);
   useEffect(() => { densityStatusRef.current = activeCrowd.densityStatus; }, [activeCrowd.densityStatus]);
+  useEffect(() => { liveCountRef.current = liveCount; }, [liveCount]);
 
   // Regenerate people when stop changes
   useEffect(() => {
@@ -130,203 +152,330 @@ export function CrowdMonitor() {
     peopleRef.current = generatePeople(liveCount, rect.width, rect.height);
   }, [selectedStop, liveCount]);
 
-  // Fluctuate count every 2s
+  // Fluctuate count every 3s
   useEffect(() => {
     const base = activeCrowd.currentCount;
     const iv = setInterval(() => {
       const next = simulateCrowdFluctuation(base);
       setLiveCount(next);
       setHistory((h) => [...h.slice(1), next]);
-    }, 2000);
+    }, 3000);
     return () => clearInterval(iv);
   }, [activeCrowd.currentCount]);
 
-  // ---------- Canvas draw loop (single effect, reads from refs) ----------
+  // ---------- Canvas draw loop ----------
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
     function draw() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      const W = canvas.width;
-      const H = canvas.height;
+    const W = canvas.width / window.devicePixelRatio;
+    const H = canvas.height / window.devicePixelRatio;
 
-      // FPS
-      frameCountRef.current++;
-      const now = Date.now();
-      if (now - lastFpsTimeRef.current >= 1000) {
-        fpsRef.current = frameCountRef.current;
-        frameCountRef.current = 0;
-        lastFpsTimeRef.current = now;
+    // FPS counter
+    frameCountRef.current++;
+    const now = Date.now();
+    if (now - lastFpsTimeRef.current >= 1000) {
+      fpsRef.current = frameCountRef.current;
+      frameCountRef.current = 0;
+      lastFpsTimeRef.current = now;
+    }
+    timeRef.current = new Date();
+    detectionTimerRef.current += 1;
+
+    const crowd = activeCrowdRef.current;
+    const dColor = densityColorRef.current;
+    const dStatus = densityStatusRef.current;
+    const count = liveCountRef.current;
+
+    ctx.save();
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+    // ===== BACKGROUND: Light scene (like a real camera feed) =====
+    // Sky / building backdrop
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.35);
+    skyGrad.addColorStop(0, '#b8c4ce');
+    skyGrad.addColorStop(1, '#a0aab4');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H * 0.35);
+
+    // Buildings silhouette
+    ctx.fillStyle = '#8a949e';
+    const buildings = [
+      { x: 0, w: W * 0.12, h: H * 0.25 },
+      { x: W * 0.1, w: W * 0.08, h: H * 0.3 },
+      { x: W * 0.16, w: W * 0.15, h: H * 0.22 },
+      { x: W * 0.3, w: W * 0.1, h: H * 0.28 },
+      { x: W * 0.38, w: W * 0.07, h: H * 0.2 },
+      { x: W * 0.82, w: W * 0.18, h: H * 0.26 },
+    ];
+    for (const b of buildings) {
+      ctx.fillRect(b.x, H * 0.35 - b.h, b.w, b.h);
+      // Windows
+      ctx.fillStyle = 'rgba(200,220,240,0.3)';
+      for (let wy = H * 0.35 - b.h + 8; wy < H * 0.32; wy += 14) {
+        for (let wx = b.x + 4; wx < b.x + b.w - 4; wx += 10) {
+          ctx.fillRect(wx, wy, 6, 8);
+        }
       }
-      timeRef.current = new Date();
+      ctx.fillStyle = '#8a949e';
+    }
 
-      const crowd = activeCrowdRef.current;
-      const dColor = densityColorRef.current;
-      const dStatus = densityStatusRef.current;
+    // Ground / road area
+    const groundGrad = ctx.createLinearGradient(0, H * 0.35, 0, H);
+    groundGrad.addColorStop(0, '#c8cdd2');
+    groundGrad.addColorStop(0.5, '#b0b8c0');
+    groundGrad.addColorStop(1, '#a8b0b8');
+    ctx.fillStyle = groundGrad;
+    ctx.fillRect(0, H * 0.35, W, H * 0.65);
 
-      // --- Background (dark CCTV) ---
-      ctx.fillStyle = '#0a0f0d';
-      ctx.fillRect(0, 0, W, H);
+    // Road surface
+    ctx.fillStyle = '#7a828a';
+    ctx.fillRect(0, H * 0.52, W, H * 0.22);
 
-      // Subtle grid
-      ctx.strokeStyle = 'rgba(20,184,166,0.04)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < W; x += 40) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    // Lane markings - dashed white center line
+    ctx.setLineDash([20, 15]);
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.63);
+    ctx.lineTo(W, H * 0.63);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Road edge - yellow line
+    ctx.strokeStyle = '#e8b830';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.52);
+    ctx.lineTo(W, H * 0.52);
+    ctx.stroke();
+
+    // Sidewalk
+    ctx.fillStyle = '#d0d4d8';
+    ctx.fillRect(0, H * 0.74, W, H * 0.06);
+    ctx.strokeStyle = '#b0b8c0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.74);
+    ctx.lineTo(W, H * 0.74);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.80);
+    ctx.lineTo(W, H * 0.80);
+    ctx.stroke();
+
+    // Platform area (bottom)
+    ctx.fillStyle = '#c0c8d0';
+    ctx.fillRect(0, H * 0.80, W, H * 0.20);
+
+    // ===== BUS SHELTER =====
+    const shelterX = W * 0.6;
+    const shelterY = H * 0.30;
+    const shelterW = W * 0.30;
+    const shelterH = H * 0.48;
+
+    // Shelter back panel
+    ctx.fillStyle = 'rgba(180,190,200,0.6)';
+    ctx.fillRect(shelterX, shelterY, shelterW, shelterH);
+    ctx.strokeStyle = 'rgba(140,155,170,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(shelterX, shelterY, shelterW, shelterH);
+
+    // Shelter roof
+    ctx.fillStyle = 'rgba(100,115,130,0.7)';
+    ctx.fillRect(shelterX - 8, shelterY, shelterW + 16, 6);
+
+    // Shelter roof supports
+    ctx.strokeStyle = 'rgba(100,115,130,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(shelterX, shelterY + 6);
+    ctx.lineTo(shelterX, shelterY + shelterH);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(shelterX + shelterW, shelterY + 6);
+    ctx.lineTo(shelterX + shelterW, shelterY + shelterH);
+    ctx.stroke();
+
+    // Shelter bench
+    ctx.fillStyle = 'rgba(120,130,140,0.5)';
+    ctx.fillRect(shelterX + 10, shelterY + shelterH - 20, shelterW - 20, 5);
+
+    // Shelter label
+    ctx.font = '9px monospace';
+    ctx.fillStyle = 'rgba(80,90,100,0.5)';
+    ctx.fillText('BUS SHELTER', shelterX + 8, shelterY - 4);
+
+    // ===== YELLOW BUS =====
+    const busX = W * 0.08;
+    const busY = H * 0.44;
+    const busW = W * 0.38;
+    const busH = H * 0.16;
+
+    // Bus shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.beginPath();
+    ctx.ellipse(busX + busW / 2, busY + busH + 4, busW * 0.45, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bus body
+    ctx.fillStyle = '#f5c518';
+    ctx.beginPath();
+    ctx.roundRect(busX, busY, busW, busH, [4, 4, 2, 2]);
+    ctx.fill();
+    ctx.strokeStyle = '#c9a20d';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Bus roof highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(busX + 2, busY + 2, busW - 4, busH * 0.15);
+
+    // Bus windows
+    ctx.fillStyle = '#2a3a5c';
+    const winStartX = busX + busW * 0.2;
+    const winW = busW * 0.1;
+    const winH = busH * 0.45;
+    const winY = busY + busH * 0.15;
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(winStartX + i * (winW + 4), winY, winW, winH);
+      // Window reflection
+      ctx.fillStyle = 'rgba(150,180,220,0.15)';
+      ctx.fillRect(winStartX + i * (winW + 4), winY, winW * 0.4, winH);
+      ctx.fillStyle = '#2a3a5c';
+    }
+
+    // Windshield
+    ctx.fillStyle = '#1e3050';
+    ctx.beginPath();
+    ctx.roundRect(busX + busW * 0.04, winY, busW * 0.13, winH, 2);
+    ctx.fill();
+
+    // Bus destination sign
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(busX + 6, busY + 4, busW * 0.5, 12);
+    ctx.font = 'bold 8px monospace';
+    ctx.fillStyle = '#f5c518';
+    ctx.fillText(crowd.stopName.toUpperCase(), busX + 10, busY + 13);
+
+    // Bus wheels
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(busX + busW * 0.18, busY + busH + 1, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(busX + busW * 0.82, busY + busH + 1, 6, 0, Math.PI * 2); ctx.fill();
+    // Wheel hubcaps
+    ctx.fillStyle = '#555';
+    ctx.beginPath(); ctx.arc(busX + busW * 0.18, busY + busH + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(busX + busW * 0.82, busY + busH + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+
+    // ===== MOVE PEOPLE =====
+    const people = peopleRef.current;
+    const updated = people.map((p) => {
+      let nx = p.x + p.vx;
+      let ny = p.y + p.vy;
+      let nvx = p.vx;
+      let nvy = p.vy;
+      // Keep within their zones
+      if (nx < 30 || nx > W - 30) nvx *= -1;
+      if (ny < H * 0.35 || ny > H * 0.92) nvy *= -1;
+      // Slight random direction change
+      if (Math.random() < 0.01) {
+        nvx = (Math.random() - 0.5) * 0.25;
+        nvy = (Math.random() - 0.5) * 0.15;
       }
-      for (let y = 0; y < H; y += 40) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      }
+      nx = Math.max(30, Math.min(W - 30, nx));
+      ny = Math.max(H * 0.35, Math.min(H * 0.92, ny));
+      return { ...p, x: nx, y: ny, vx: nvx, vy: nvy };
+    });
+    peopleRef.current = updated;
 
-      // --- Ground / platform area ---
-      ctx.fillStyle = 'rgba(20,184,166,0.03)';
-      ctx.fillRect(20, H - 80, W - 40, 50);
-      ctx.strokeStyle = 'rgba(20,184,166,0.15)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(20, H - 80, W - 40, 50);
-      ctx.font = '10px monospace';
-      ctx.fillStyle = 'rgba(20,184,166,0.3)';
-      ctx.fillText('PLATFORM AREA', 28, H - 60);
+    // ===== DRAW PEOPLE + BOUNDING BOXES =====
+    for (const p of updated) {
+      const boxPad = 8;
+      const bx = p.x - p.bodyW / 2 - boxPad;
+      const by = p.y - p.bodyH - 10 - boxPad;
+      const bw = p.bodyW + boxPad * 2;
+      const bh = p.bodyH + 14 + boxPad * 2;
 
-      // --- Bus shelter ---
-      ctx.fillStyle = 'rgba(255,255,255,0.05)';
-      ctx.fillRect(W * 0.6, 50, W * 0.32, H * 0.55);
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(W * 0.6, 50, W * 0.32, H * 0.55);
-      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(W * 0.58, 50); ctx.lineTo(W * 0.94, 50); ctx.stroke();
-      ctx.font = '10px monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillText('BUS SHELTER', W * 0.7, 46);
+      // Person silhouette (simple body shape)
+      // Head
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - p.bodyH - 6, p.bodyW * 0.35, p.bodyW * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Body
+      ctx.fillRect(p.x - p.bodyW / 2, p.y - p.bodyH, p.bodyW, p.bodyH);
+      // Legs
+      ctx.fillStyle = '#3a4a5a';
+      ctx.fillRect(p.x - p.bodyW / 2 + 1, p.y, p.bodyW * 0.4, 8);
+      ctx.fillRect(p.x + 1, p.y, p.bodyW * 0.4, 8);
 
-      // --- Move people slightly (mutate in-place via local ref copy) ---
-      const people = peopleRef.current;
-      const updated = people.map((p) => {
-        let nx = p.x + p.vx;
-        let ny = p.y + p.vy;
-        let nvx = p.vx;
-        let nvy = p.vy;
-        if (nx < 30 || nx > W - 50) nvx *= -1;
-        if (ny < 60 || ny > H - 90) nvy *= -1;
-        nx = Math.max(30, Math.min(W - 50, nx));
-        ny = Math.max(60, Math.min(H - 90, ny));
-        return { ...p, x: nx, y: ny, vx: nvx, vy: nvy };
-      });
-      peopleRef.current = updated;
+      // Teal bounding box
+      ctx.strokeStyle = 'rgba(20,184,166,0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by, bw, bh);
 
-      // --- Draw people silhouettes + bounding boxes ---
-      for (const p of updated) {
-        const pw = 20;
-        const ph = 30;
-        const boxPad = 6;
+      // Corner brackets (teal, thicker)
+      const cl = 7;
+      ctx.strokeStyle = '#14b8a6';
+      ctx.lineWidth = 2.5;
+      // Top-left
+      ctx.beginPath(); ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by); ctx.stroke();
+      // Top-right
+      ctx.beginPath(); ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl); ctx.stroke();
+      // Bottom-left
+      ctx.beginPath(); ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh); ctx.stroke();
+      // Bottom-right
+      ctx.beginPath(); ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl); ctx.stroke();
 
-        // Silhouette color based on density
-        const silhouetteColor =
-          dStatus === 'HIGH'
-            ? 'rgba(239,68,68,0.55)'
-            : dStatus === 'MODERATE'
-              ? 'rgba(245,158,11,0.5)'
-              : 'rgba(34,197,94,0.45)';
-        ctx.fillStyle = silhouetteColor;
-        ctx.fillRect(p.x, p.y, pw, ph);
-
-        // Head circle
-        ctx.beginPath();
-        ctx.arc(p.x + pw / 2, p.y - 5, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Green bounding box
-        ctx.strokeStyle = '#22c55e';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(
-          p.x - boxPad,
-          p.y - 12 - boxPad,
-          pw + boxPad * 2,
-          ph + 17 + boxPad * 2,
-        );
-
-        // Confidence label
-        const confText = `${(p.confidence * 100).toFixed(0)}%`;
-        ctx.font = '9px monospace';
-        const tw = ctx.measureText(confText).width;
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(p.x - boxPad, p.y - 20 - boxPad, tw + 6, 12);
-        ctx.fillStyle = '#22c55e';
-        ctx.fillText(confText, p.x - boxPad + 3, p.y - 11 - boxPad);
-
-        // Corner brackets
-        const bx = p.x - boxPad;
-        const by = p.y - 12 - boxPad;
-        const bw = pw + boxPad * 2;
-        const bh = ph + 17 + boxPad * 2;
-        const cl = 6;
-        ctx.strokeStyle = '#14b8a6';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl); ctx.stroke();
-      }
-
-      // --- Scanline effect ---
-      scanlineYRef.current = (scanlineYRef.current + 1.5) % H;
-      const sy = scanlineYRef.current;
-      const grad = ctx.createLinearGradient(0, sy - 30, 0, sy + 30);
-      grad.addColorStop(0, 'rgba(20,184,166,0)');
-      grad.addColorStop(0.5, 'rgba(20,184,166,0.12)');
-      grad.addColorStop(1, 'rgba(20,184,166,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, sy - 30, W, 60);
-      ctx.strokeStyle = 'rgba(20,184,166,0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
-
-      // --- CRT horizontal scanlines ---
-      ctx.fillStyle = 'rgba(0,0,0,0.06)';
-      for (let y = 0; y < H; y += 3) {
-        ctx.fillRect(0, y, W, 1);
-      }
-
-      // --- Vignette ---
-      const vignette = ctx.createRadialGradient(W / 2, H / 2, W * 0.3, W / 2, H / 2, W * 0.75);
-      vignette.addColorStop(0, 'rgba(0,0,0,0)');
-      vignette.addColorStop(1, 'rgba(0,0,0,0.5)');
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, W, H);
-
-      // --- Overlay: Top-left ---
-      ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = '#14b8a6';
-      ctx.fillText(`CAM: ${crowd.cameraId}`, 12, 20);
-      ctx.font = '11px monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillText(formatDate(timeRef.current), 12, 36);
-      ctx.fillText(formatTime(timeRef.current), 12, 50);
-
-      // --- Overlay: Top-right LIVE + FPS ---
-      const liveText = '\u25CF LIVE';
-      ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = '#ef4444';
-      ctx.fillText(liveText, W - ctx.measureText(liveText).width - 12, 20);
-      ctx.font = '10px monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fillText(`${fpsRef.current} FPS`, W - 50, 36);
-
-      // --- Overlay: Bottom-left ---
-      ctx.font = 'bold 13px monospace';
+      // Label badge: #ID
+      const label = `#${p.id}`;
+      ctx.font = 'bold 9px monospace';
+      const tw = ctx.measureText(label).width;
+      const labelW = tw + 8;
+      ctx.fillStyle = 'rgba(20,184,166,0.9)';
+      ctx.beginPath();
+      ctx.roundRect(bx, by - 14, labelW, 13, 2);
+      ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(crowd.stopName.toUpperCase(), 12, H - 14);
+      ctx.fillText(label, bx + 4, by - 4);
 
-      // --- Overlay: Bottom-right ---
-      const detText = `DETECTED: ${updated.length}`;
-      ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = dColor;
-      ctx.fillText(detText, W - ctx.measureText(detText).width - 12, H - 14);
+      // Confidence % at bottom of box
+      const confText = `${(p.confidence * 100).toFixed(0)}%`;
+      ctx.font = '8px monospace';
+      const cw = ctx.measureText(confText).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.roundRect(bx, by + bh + 2, cw + 6, 11, 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(20,184,166,0.9)';
+      ctx.fillText(confText, bx + 3, by + bh + 10);
+    }
 
+    // ===== BOTTOM CLASSIFICATION BAR =====
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, H - 28, W, 28);
+    ctx.font = '9px monospace';
+    ctx.fillStyle = 'rgba(20,184,166,0.7)';
+    ctx.fillText('CLASSIFICATION: YOLOv8-Person', 10, H - 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText(`CONF THRESHOLD: 0.75`, 190, H - 12);
+    ctx.fillText(`NMS IOU: 0.45`, 330, H - 12);
+    ctx.fillStyle = dColor;
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText(`DENSITY: ${dStatus.toUpperCase()}`, 450, H - 12);
+
+    // ===== CV OVERLAY: Timestamp + CAM info (bottom-right) =====
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    const tsText = `${formatTime(timeRef.current)}  |  ${fpsRef.current} FPS`;
+    ctx.font = '9px monospace';
+    const tsW = ctx.measureText(tsText).width;
+    ctx.fillRect(W - tsW - 16, H - 28, tsW + 16, 28);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(tsText, W - tsW - 10, H - 12);
+
+    ctx.restore();
       animFrameRef.current = requestAnimationFrame(draw);
     }
 
@@ -342,8 +491,6 @@ export function CrowdMonitor() {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * window.devicePixelRatio;
       canvas.height = rect.height * window.devicePixelRatio;
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
       peopleRef.current = generatePeople(liveCount, rect.width, rect.height);
     });
     ro.observe(canvas);
@@ -354,199 +501,230 @@ export function CrowdMonitor() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6 w-full">
-      {/* ---- LEFT: CCTV Canvas ---- */}
+      {/* ---- LEFT: CV Camera Feed ---- */}
       <motion.div
         className="lg:col-span-3"
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Card className="overflow-hidden border-[#14b8a6]/20 bg-[#080d0b]">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Camera className="size-5 text-[#14b8a6]" />
-                <CardTitle className="text-sm text-white/90">
-                  CV Passenger Density Tracker
-                </CardTitle>
+        <Card className="overflow-hidden border-white/10 bg-[#0f1214]">
+          {/* Top header bar - matches screenshot style */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-[#0a0d0f] border-b border-white/5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center size-7 rounded-md bg-emerald-500/15">
+                <Eye className="size-4 text-emerald-400" />
               </div>
-              <motion.span
-                className="inline-flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400"
-                animate={{ opacity: [1, 0.5, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-              >
-                <Radio className="size-3" />
-                LIVE
-              </motion.span>
+              <span className="text-sm font-semibold text-white/90">
+                Passenger Density <span className="text-white/40 font-normal">·</span>{' '}
+                <span className="text-white/50 font-medium">Computer Vision</span>
+              </span>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
+
+            <div className="flex items-center gap-3">
+              {/* Density status badge */}
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-bold px-2.5 py-0.5 border ${densityCfg.bgClass}`}
+              >
+                {densityCfg.label.toUpperCase()}
+              </Badge>
+              <span className="text-xs text-white/70 font-medium">
+                {liveCount} detected
+              </span>
+
+              {/* Camera selector - pill style */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowCameraSelect(!showCameraSelect)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-teal-500/30 bg-teal-500/5 text-xs text-white/80 hover:bg-teal-500/10 transition-colors"
+                >
+                  <span className="text-teal-400 font-mono text-[10px]">{activeCrowd.cameraId}</span>
+                  <span className="text-white/40">·</span>
+                  <span>{activeCrowd.stopName}</span>
+                  <ChevronDown className={`size-3 text-white/40 transition-transform ${showCameraSelect ? 'rotate-180' : ''}`} />
+                </button>
+                {showCameraSelect && (
+                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[220px] rounded-lg border border-white/10 bg-[#111a16] py-1 shadow-xl">
+                    {crowdData.map((c) => {
+                      const cfg = DENSITY_CONFIG[c.densityStatus];
+                      return (
+                        <button
+                          key={c.stopId}
+                          onClick={() => { setSelectedStop(c.stopId); setShowCameraSelect(false); }}
+                          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                        >
+                          <span className="size-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+                          <span className="text-xs text-white/80 font-mono">{c.cameraId}</span>
+                          <span className="text-xs text-white/50">·</span>
+                          <span className="text-xs text-white/70">{c.stopName}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Canvas */}
+          <CardContent className="p-0 relative">
             <canvas
               ref={canvasRef}
-              className="w-full h-[360px] sm:h-[420px] lg:h-[460px] block"
+              className="w-full h-[380px] sm:h-[440px] lg:h-[480px] block"
             />
+            {/* LIVE indicator overlay */}
+            <motion.div
+              className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded bg-red-500/20 backdrop-blur-sm"
+              animate={{ opacity: [1, 0.6, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <span className="size-2 rounded-full bg-red-500" />
+              <span className="text-[10px] font-bold text-red-400 tracking-wider">LIVE</span>
+            </motion.div>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* ---- RIGHT: Density Stats Panel ---- */}
+      {/* ---- RIGHT: Stats Panel ---- */}
       <motion.div
         className="lg:col-span-2 flex flex-col gap-4"
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, delay: 0.15 }}
       >
-        {/* Camera Selector */}
-        <Card className="border-[#14b8a6]/20 bg-[#080d0b]">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Eye className="size-4 text-[#14b8a6]" />
-              <span className="text-xs font-medium text-white/60 uppercase tracking-wider">
-                Camera Feed
-              </span>
-            </div>
-            <Select value={selectedStop} onValueChange={setSelectedStop}>
-              <SelectTrigger className="w-full bg-white/5 border-white/10 text-white">
-                <SelectValue placeholder="Select stop" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#111a16] border-white/10">
-                {crowdData.map((c) => {
-                  const cfg = DENSITY_CONFIG[c.densityStatus];
-                  return (
-                    <SelectItem key={c.stopId} value={c.stopId}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block size-2 rounded-full"
-                          style={{ backgroundColor: cfg.color }}
-                        />
-                        {c.stopName}
-                        <span className="text-white/40 text-xs ml-auto">{c.cameraId}</span>
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {/* Live Count Card */}
-        <Card className="border-[#14b8a6]/20 bg-[#080d0b]">
-          <CardContent className="p-4">
+        {/* Live Count - Large gauge style */}
+        <Card className="border-white/10 bg-[#0f1214]">
+          <CardContent className="p-5">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
+              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
                 Passengers Detected
               </span>
               <motion.div
-                className="size-2 rounded-full"
+                className="size-2.5 rounded-full"
                 style={{ backgroundColor: densityCfg.color }}
-                animate={{ scale: [1, 1.4, 1] }}
+                animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               />
             </div>
-            <div className="flex items-end gap-3">
+            <div className="flex items-end gap-3 mt-2">
               <motion.span
                 key={liveCount}
-                className="text-5xl font-bold tabular-nums"
+                className="text-6xl font-bold tabular-nums tracking-tight"
                 style={{ color: densityCfg.color }}
-                initial={{ y: -10, opacity: 0 }}
+                initial={{ y: -12, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
               >
                 {liveCount}
               </motion.span>
-              <span className="text-white/40 text-sm mb-2">people</span>
+              <span className="text-white/30 text-sm mb-2 font-medium">people</span>
             </div>
-            <div className="mt-2">
-              <Badge
-                className="text-[11px] font-semibold border-0"
-                style={{
-                  backgroundColor: densityCfg.glow,
-                  color: densityCfg.color,
-                }}
-              >
-                {activeCrowd.densityStatus === 'HIGH' && (
-                  <AlertTriangle className="size-3 mr-1" />
-                )}
-                {activeCrowd.densityStatus === 'LOW' && (
-                  <ShieldCheck className="size-3 mr-1" />
-                )}
-                {activeCrowd.densityStatus === 'MODERATE' && (
-                  <Activity className="size-3 mr-1" />
-                )}
-                {densityCfg.label} Density
-              </Badge>
+            {/* Density level bar */}
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/30 uppercase tracking-wider">Density Level</span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-bold px-2 py-0 border ${densityCfg.bgClass}`}
+                >
+                  {densityCfg.label}
+                </Badge>
+              </div>
+              <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: densityCfg.color }}
+                  animate={{
+                    width: `${Math.min((liveCount / 25) * 100, 100)}%`,
+                  }}
+                  transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                />
+              </div>
+              <div className="flex justify-between text-[9px] text-white/20 tabular-nums">
+                <span>0</span>
+                <span>LOW</span>
+                <span>MODERATE</span>
+                <span>HIGH</span>
+                <span>25+</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Recommended Action */}
-        <Card className="border-[#14b8a6]/20 bg-[#080d0b]">
+        {/* System Status Indicators */}
+        <Card className="border-white/10 bg-[#0f1214]">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="size-4 text-[#14b8a6]" />
-              <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
-                Recommended Action
+            <div className="flex items-center gap-2 mb-3">
+              <Cpu className="size-3.5 text-teal-400" />
+              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+                System Status
               </span>
             </div>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeCrowd.recommendedAction}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.25 }}
-              >
-                <p className="text-sm font-medium text-white/90">
-                  {activeCrowd.recommendedAction === 'DISPATCH_EXTRA_BUS'
-                    ? '🚍 Dispatch additional bus immediately'
-                    : activeCrowd.recommendedAction === 'MONITOR'
-                      ? '👁️ Continue monitoring \u2014 no action needed'
-                      : '✅ All clear \u2014 normal operations'}
-                </p>
-                <p className="text-xs text-white/40 mt-1">
-                  {activeCrowd.recommendedAction === 'DISPATCH_EXTRA_BUS'
-                    ? 'Density threshold exceeded. Consider rerouting idle vehicles.'
-                    : activeCrowd.recommendedAction === 'MONITOR'
-                      ? 'Density within acceptable range. Maintain current schedule.'
-                      : 'Low footfall detected. No intervention required.'}
-                </p>
-              </motion.div>
-            </AnimatePresence>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2">
+                <Wifi className="size-3.5 text-emerald-400" />
+                <div>
+                  <p className="text-[10px] text-white/30">Stream</p>
+                  <p className="text-xs text-emerald-400 font-semibold">Connected</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Monitor className="size-3.5 text-emerald-400" />
+                <div>
+                  <p className="text-[10px] text-white/30">Model</p>
+                  <p className="text-xs text-white/70 font-mono">YOLOv8</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="size-3.5 text-emerald-400" />
+                <div>
+                  <p className="text-[10px] text-white/30">Inference</p>
+                  <p className="text-xs text-white/70 font-mono">~33ms</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <BarChart3 className="size-3.5 text-amber-400" />
+                <div>
+                  <p className="text-[10px] text-white/30">Accuracy</p>
+                  <p className="text-xs text-amber-400 font-semibold">94.2%</p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* Density History Sparkline */}
-        <Card className="border-[#14b8a6]/20 bg-[#080d0b]">
+        <Card className="border-white/10 bg-[#0f1214]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Activity className="size-4 text-[#14b8a6]" />
-                <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
-                  Density History
+                <Activity className="size-3.5 text-teal-400" />
+                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+                  Density Trend
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-white/30">
+              <div className="flex items-center gap-1 text-white/20">
                 <Clock className="size-3" />
-                <span className="text-[10px]">Last {history.length * 2}s</span>
+                <span className="text-[9px] font-mono">Last {history.length * 3}s</span>
               </div>
             </div>
-            <div className="flex items-end gap-[3px] h-16">
+            <div className="flex items-end gap-[2px] h-14">
               {history.map((val, i) => {
-                const h = Math.max(4, (val / maxHist) * 100);
+                const h = Math.max(3, (val / maxHist) * 100);
                 const isLast = i === history.length - 1;
                 return (
                   <motion.div
                     key={`${selectedStop}-${i}`}
-                    className="flex-1 rounded-sm min-w-[6px]"
+                    className="flex-1 rounded-t-sm min-w-[4px]"
                     style={{
                       backgroundColor: isLast
                         ? densityCfg.color
-                        : `${densityCfg.color}44`,
+                        : `${densityCfg.color}33`,
                     }}
                     initial={{ height: 0 }}
                     animate={{ height: `${h}%` }}
-                    transition={{ duration: 0.3, delay: i * 0.02 }}
+                    transition={{ duration: 0.3, delay: i * 0.015 }}
                   />
                 );
               })}
@@ -554,16 +732,16 @@ export function CrowdMonitor() {
           </CardContent>
         </Card>
 
-        {/* All Stops Overview */}
-        <Card className="border-[#14b8a6]/20 bg-[#080d0b]">
+        {/* All Monitored Stops */}
+        <Card className="border-white/10 bg-[#0f1214]">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Users className="size-4 text-[#14b8a6]" />
-              <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
-                All Monitored Stops
+              <Eye className="size-3.5 text-teal-400" />
+              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+                All Cameras
               </span>
             </div>
-            <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
               {crowdData.map((c) => {
                 const cfg = DENSITY_CONFIG[c.densityStatus];
                 const isActive = c.stopId === selectedStop;
@@ -571,33 +749,26 @@ export function CrowdMonitor() {
                   <motion.button
                     key={c.stopId}
                     onClick={() => setSelectedStop(c.stopId)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors w-full ${
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all w-full ${
                       isActive
-                        ? 'bg-white/10 ring-1 ring-white/10'
-                        : 'hover:bg-white/5'
+                        ? 'bg-white/8 ring-1 ring-white/10'
+                        : 'hover:bg-white/3'
                     }`}
                     whileHover={{ x: 2 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   >
                     <span
-                      className="size-2.5 rounded-full shrink-0"
+                      className="size-2 rounded-full shrink-0"
                       style={{ backgroundColor: cfg.color }}
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white/90 truncate">{c.stopName}</p>
-                      <p className="text-[10px] text-white/30">
-                        {c.cameraId} · {c.recommendedAction}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className="text-sm font-semibold tabular-nums"
-                        style={{ color: cfg.color }}
-                      >
-                        {c.currentCount}
-                      </span>
-                      <ChevronRight className="size-3.5 text-white/20" />
-                    </div>
+                    <span className="text-[10px] text-white/30 font-mono shrink-0">{c.cameraId}</span>
+                    <span className="text-xs text-white/70 truncate flex-1">{c.stopName}</span>
+                    <span
+                      className="text-xs font-bold tabular-nums shrink-0"
+                      style={{ color: cfg.color }}
+                    >
+                      {c.currentCount}
+                    </span>
                   </motion.button>
                 );
               })}

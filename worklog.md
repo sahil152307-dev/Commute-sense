@@ -79,3 +79,27 @@ Stage Summary:
 - Mumbai map: coastline, harbor, 3 highways, 3 railway lines, 17 stations, sea labels
 - Mobile responsive: admin portal and ETA cards both tested and verified
 - 0 lint errors, 0 runtime errors
+
+---
+Task ID: 4
+Agent: Main Orchestrator
+Task: Slow down bus movement to real-time, redesign Crowd Monitor to CV-style, improve bus visuals
+
+Work Log:
+- Analyzed user screenshot with VLM: showed a CV-based passenger density interface with header (eye icon + 'Passenger Density · Computer Vision'), status badge, camera selector pill, realistic scene with yellow bus and bounding boxes with #ID labels
+- **City Map Bus Speed**: Replaced integer-index jumping every 2s with floating-point interpolation every 50ms. Buses now take 30-60 seconds per segment. Added path interpolation (getPositionOnPath, getAngle), rotation based on travel direction. Fixed react-hooks/refs lint error by using state snapshot (vehicleSnapshot) instead of reading ref during render.
+- **Bus Visuals**: Completely redesigned bus SVG: yellow body with gradient overlay, 3 windows with reflections, windshield, destination sign, 2 wheels with hubcaps, yellow headlight and red tail light, vehicle ID label in rounded badge above bus. Metro has elongated sleek shape with 3 windows.
+- **Crowd Monitor Redesign**: Complete rewrite from dark CCTV style to realistic camera feed:
+  - Light gray scene with sky gradient, building silhouettes with windows, road with lane markings (dashed white center, yellow edge), sidewalk, platform area
+  - Yellow BEST-style bus with windows, windshield, destination sign, wheels with hubcaps
+  - Bus shelter with roof, supports, bench
+  - People with colored clothing (10 colors), proper head/body/leg proportions, teal bounding boxes with corner brackets, #ID teal label badges, confidence % labels
+  - Bottom classification bar: YOLOv8-Person, CONF THRESHOLD: 0.75, NMS IOU: 0.45, DENSITY status
+  - Header bar: green eye icon, 'Passenger Density · Computer Vision', density badge, camera selector pill dropdown
+  - Right panel: large animated count, density level bar with markers, system status grid (Stream/Model/Inference/Accuracy), density trend sparkline, all cameras list
+
+Stage Summary:
+- Bus movement is now smooth real-time (50ms updates, ~30-60s per segment, direction-based rotation)
+- Bus SVG has realistic details (windows, wheels, headlights, destination sign, ID label)
+- Crowd Monitor completely redesigned to match CV-based interface from screenshot
+- 0 lint errors, 0 runtime errors, all verified via agent-browser
