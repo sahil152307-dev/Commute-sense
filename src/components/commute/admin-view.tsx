@@ -39,7 +39,7 @@ export function AdminView() {
         className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
       >
         <div>
-          <h2 className="text-xl font-bold tracking-tight">Admin Control Center</h2>
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Admin Control Center</h2>
           <p className="text-sm text-muted-foreground">Fleet operations & safety monitoring</p>
         </div>
         <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.02] p-1">

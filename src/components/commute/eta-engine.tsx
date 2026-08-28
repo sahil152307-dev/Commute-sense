@@ -304,7 +304,7 @@ export function ETAEngine() {
                         <Bus className="size-3.5 text-teal-400" />
                         Arriving Routes at {etaData.stationName}
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-h-[28rem] sm:max-h-96 overflow-y-auto pr-1">
                         {etaData.routes.map((route) => (
                           <motion.div
                             key={route.routeId}
@@ -313,34 +313,34 @@ export function ETAEngine() {
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
                           >
-                            <Card className="py-4 gap-0 border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent hover:border-white/10 transition-colors">
-                              <CardContent className="p-4 space-y-3">
+                            <Card className="py-3 sm:py-4 gap-0 border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent hover:border-white/10 transition-colors">
+                              <CardContent className="p-3 sm:p-4 space-y-2.5 sm:space-y-3">
                                 {/* Route header: color bar + name + congestion badge */}
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5 sm:gap-3">
                                   <div
-                                    className="w-1 h-8 rounded-full shrink-0"
+                                    className="w-1 h-7 sm:h-8 rounded-full shrink-0"
                                     style={{ backgroundColor: route.routeColor }}
                                   />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-foreground truncate">
+                                    <p className="text-sm sm:text-[15px] font-semibold text-foreground truncate">
                                       {route.routeName}
                                     </p>
                                   </div>
                                   <Badge
                                     variant="outline"
-                                    className={`text-[10px] shrink-0 ${congestionBadgeStyle(route.congestionLevel)}`}
+                                    className={`text-[9px] sm:text-[10px] shrink-0 ${congestionBadgeStyle(route.congestionLevel)}`}
                                   >
                                     {route.congestionLevel}
                                   </Badge>
                                 </div>
 
                                 {/* ETA + details row */}
-                                <div className="flex items-end justify-between gap-4 pl-4">
+                                <div className="flex items-end justify-between gap-3 sm:gap-4 pl-4">
                                   {/* ETA minutes */}
                                   <div className="flex items-baseline gap-1">
-                                    <Timer className="size-4 text-teal-400 mb-0.5" />
+                                    <Timer className="size-4 sm:size-5 text-teal-400 mb-0.5" />
                                     <AnimatedETA value={route.etaMinutes} />
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-xs sm:text-sm text-muted-foreground">
                                       min
                                     </span>
                                   </div>

@@ -93,7 +93,7 @@ export const routes: Route[] = [
       { stopId: 'ST_03', name: 'Vile Parle', lat: 19.0900, lng: 72.8514 },
       { stopId: 'ST_04', name: 'Andheri East', lat: 19.1197, lng: 72.8464 },
     ],
-    path: [[120, 180], [220, 200], [340, 190], [460, 175]],
+    path: [[370, 445], [290, 385], [255, 335], [235, 285]],
   },
   {
     routeId: 'route_102',
@@ -110,7 +110,7 @@ export const routes: Route[] = [
       { stopId: 'ST_08', name: 'Malad', lat: 19.1564, lng: 72.8492 },
       { stopId: 'ST_09', name: 'Borivali West', lat: 19.2307, lng: 72.8567 },
     ],
-    path: [[100, 350], [160, 320], [200, 300], [380, 260], [520, 240]],
+    path: [[400, 555], [325, 535], [350, 515], [420, 260], [210, 235]],
   },
   {
     routeId: 'route_103',
@@ -125,7 +125,7 @@ export const routes: Route[] = [
       { stopId: 'ST_11', name: 'Mulund West', lat: 19.1750, lng: 72.9500 },
       { stopId: 'ST_12', name: 'Kanjurmarg', lat: 19.1480, lng: 72.9350 },
     ],
-    path: [[550, 140], [480, 170], [420, 200]],
+    path: [[555, 185], [505, 225], [465, 265]],
   },
   {
     routeId: 'route_104',
@@ -140,7 +140,22 @@ export const routes: Route[] = [
       { stopId: 'ST_02', name: 'IT Park', lat: 19.0880, lng: 72.8890 },
       { stopId: 'ST_13', name: 'Tech Hub', lat: 19.1000, lng: 72.9000 },
     ],
-    path: [[200, 280], [300, 240], [420, 210]],
+    path: [[420, 385], [465, 340], [500, 310]],
+  },
+  {
+    routeId: 'route_105',
+    routeName: 'Route 105 – Panvel to Karjat & Khopoli',
+    routeColor: '#84cc16',
+    activeVehicles: ['BUS_111'],
+    congestionIndex: 'Low',
+    currentDemand: 34,
+    capacity: 55,
+    stops: [
+      { stopId: 'ST_14', name: 'Panvel Station', lat: 18.9894, lng: 73.1075 },
+      { stopId: 'ST_15', name: 'Karjat Junction', lat: 18.9600, lng: 73.3300 },
+      { stopId: 'ST_16', name: 'Khopoli', lat: 18.9100, lng: 73.3400 },
+    ],
+    path: [[600, 465], [670, 420], [650, 490]],
   },
 ];
 
@@ -154,6 +169,7 @@ export const vehicles: Vehicle[] = [
   { vehicleId: 'BUS_106', type: 'bus', routeId: 'route_103', speedKmph: 45, passengers: 22, capacity: 40, lat: 19.20, lng: 72.96, status: 'active' },
   { vehicleId: 'BUS_107', type: 'bus', routeId: 'route_104', speedKmph: 18, passengers: 55, capacity: 50, lat: 19.08, lng: 72.88, status: 'active' },
   { vehicleId: 'BUS_108', type: 'bus', routeId: 'route_104', speedKmph: 38, passengers: 42, capacity: 50, lat: 19.09, lng: 72.89, status: 'active' },
+  { vehicleId: 'BUS_111', type: 'bus', routeId: 'route_105', speedKmph: 40, passengers: 34, capacity: 55, lat: 18.99, lng: 73.11, status: 'active' },
   { vehicleId: 'BUS_109', type: 'bus', routeId: '', speedKmph: 0, passengers: 0, capacity: 60, lat: 19.12, lng: 72.90, status: 'idle' },
   { vehicleId: 'BUS_110', type: 'bus', routeId: '', speedKmph: 0, passengers: 0, capacity: 60, lat: 19.10, lng: 72.86, status: 'idle' },
   { vehicleId: 'METRO_01', type: 'metro', routeId: 'route_101', speedKmph: 80, passengers: 220, capacity: 300, lat: 19.07, lng: 72.84, status: 'active' },
@@ -242,6 +258,9 @@ export const stations = [
   { id: 'ST_10', name: 'Thane Station', routeIds: ['route_103'] },
   { id: 'ST_11', name: 'Mulund West', routeIds: ['route_103'] },
   { id: 'ST_13', name: 'Tech Hub', routeIds: ['route_104'] },
+  { id: 'ST_14', name: 'Panvel Station', routeIds: ['route_105'] },
+  { id: 'ST_15', name: 'Karjat Junction', routeIds: ['route_105'] },
+  { id: 'ST_16', name: 'Khopoli', routeIds: ['route_105'] },
 ];
 
 // ---- SVG City Map Data ----
@@ -254,19 +273,22 @@ export interface MapNode {
 }
 
 export const mapNodes: MapNode[] = [
-  { id: 'ST_01', x: 200, y: 280, name: 'Central Station', type: 'hub' },
-  { id: 'ST_02', x: 300, y: 240, name: 'IT Park', type: 'station' },
-  { id: 'ST_03', x: 340, y: 190, name: 'Vile Parle', type: 'station' },
-  { id: 'ST_04', x: 460, y: 175, name: 'Andheri East', type: 'station' },
-  { id: 'ST_05', x: 100, y: 350, name: 'CSMT', type: 'hub' },
-  { id: 'ST_06', x: 160, y: 320, name: 'Marine Drive', type: 'station' },
-  { id: 'ST_07', x: 200, y: 300, name: 'Churchgate', type: 'station' },
-  { id: 'ST_08', x: 380, y: 260, name: 'Malad', type: 'station' },
-  { id: 'ST_09', x: 520, y: 240, name: 'Borivali West', type: 'station' },
-  { id: 'ST_10', x: 550, y: 140, name: 'Thane Station', type: 'hub' },
-  { id: 'ST_11', x: 480, y: 170, name: 'Mulund West', type: 'station' },
-  { id: 'ST_12', x: 420, y: 200, name: 'Kanjurmarg', type: 'station' },
-  { id: 'ST_13', x: 420, y: 210, name: 'Tech Hub', type: 'hub' },
+  { id: 'ST_05', x: 400, y: 555, name: 'CSMT', type: 'hub' },
+  { id: 'ST_06', x: 325, y: 535, name: 'Marine Drive', type: 'station' },
+  { id: 'ST_07', x: 350, y: 515, name: 'Churchgate', type: 'station' },
+  { id: 'ST_01', x: 420, y: 385, name: 'Central Station', type: 'hub' },
+  { id: 'ST_02', x: 465, y: 340, name: 'IT Park', type: 'station' },
+  { id: 'ST_03', x: 255, y: 335, name: 'Vile Parle', type: 'station' },
+  { id: 'ST_04', x: 235, y: 285, name: 'Andheri East', type: 'station' },
+  { id: 'ST_08', x: 210, y: 235, name: 'Malad', type: 'station' },
+  { id: 'ST_09', x: 190, y: 175, name: 'Borivali West', type: 'station' },
+  { id: 'ST_10', x: 555, y: 185, name: 'Thane Station', type: 'hub' },
+  { id: 'ST_11', x: 505, y: 225, name: 'Mulund West', type: 'station' },
+  { id: 'ST_12', x: 465, y: 265, name: 'Kanjurmarg', type: 'station' },
+  { id: 'ST_13', x: 500, y: 310, name: 'Tech Hub', type: 'hub' },
+  { id: 'ST_14', x: 600, y: 465, name: 'Panvel Station', type: 'hub' },
+  { id: 'ST_15', x: 670, y: 420, name: 'Karjat Junction', type: 'station' },
+  { id: 'ST_16', x: 650, y: 490, name: 'Khopoli', type: 'station' },
 ];
 
 // Helper: get route by ID
@@ -332,8 +354,8 @@ export const emergencyEvents: EmergencyEvent[] = [
     type: 'PUNCTURE',
     vehicleId: 'BUS_101', driverId: 'DRV_882', driverName: 'Rajesh Kumar',
     routeId: 'route_101', routeName: 'Route 101 – Dadar to Andheri',
-    stopId: 'ST_02', stopName: 'Banda Terminus',
-    lat: 19.0544, lng: 72.8402, mapX: 220, mapY: 200,
+    stopId: 'ST_02', stopName: 'Bandra Terminus',
+    lat: 19.0544, lng: 72.8402, mapX: 290, mapY: 385,
     passengersStranded: 48,
     message: 'BUS_101 front tyre punctured near Bandra Terminus. 48 passengers stranded.',
     timestamp: new Date(Date.now() - 120000).toISOString(),
@@ -345,7 +367,7 @@ export const emergencyEvents: EmergencyEvent[] = [
     vehicleId: 'BUS_107', driverId: 'DRV_221', driverName: 'Amit Singh',
     routeId: 'route_104', routeName: 'Route 104 – City Center to Tech Hub',
     stopId: 'ST_02', stopName: 'IT Park Junction',
-    lat: 19.088, lng: 72.889, mapX: 300, mapY: 240,
+    lat: 19.088, lng: 72.889, mapX: 465, mapY: 340,
     passengersStranded: 55,
     message: 'BUS_107 stuck in heavy traffic near IT Park. Signal congestion reported. 55 passengers affected.',
     timestamp: new Date(Date.now() - 60000).toISOString(),
@@ -357,7 +379,7 @@ export const emergencyEvents: EmergencyEvent[] = [
     vehicleId: 'BUS_105', driverId: 'DRV_667', driverName: 'Vikram Joshi',
     routeId: 'route_102', routeName: 'Route 102 – CSMT to Borivali',
     stopId: 'ST_08', stopName: 'Malad Depot',
-    lat: 19.1564, lng: 72.8492, mapX: 380, mapY: 260,
+    lat: 19.1564, lng: 72.8492, mapX: 210, mapY: 235,
     passengersStranded: 30,
     message: 'Driver Vikram Joshi reported medical emergency. BUS_105 halted at Malad. 30 passengers onboard.',
     timestamp: new Date(Date.now() - 180000).toISOString(),
@@ -376,11 +398,11 @@ export interface TrafficZone {
 }
 
 export const trafficZones: TrafficZone[] = [
-  { name: 'Bandra-Worli Signal', mapX: 250, mapY: 215, radius: 35, severity: 'high', delayMinutes: 12 },
-  { name: 'Andheri Subway', mapX: 450, mapY: 180, radius: 30, severity: 'medium', delayMinutes: 8 },
-  { name: 'Dadar TT Circle', mapX: 160, mapY: 250, radius: 28, severity: 'high', delayMinutes: 15 },
-  { name: 'JVLR Junction', mapX: 400, mapY: 200, radius: 25, severity: 'low', delayMinutes: 4 },
-  { name: 'Borivali West Flyover', mapX: 530, mapY: 245, radius: 22, severity: 'medium', delayMinutes: 6 },
+  { name: 'Bandra-Worli Signal', mapX: 310, mapY: 410, radius: 35, severity: 'high', delayMinutes: 12 },
+  { name: 'Andheri Subway', mapX: 240, mapY: 285, radius: 30, severity: 'medium', delayMinutes: 8 },
+  { name: 'Dadar TT Circle', mapX: 390, mapY: 440, radius: 28, severity: 'high', delayMinutes: 15 },
+  { name: 'JVLR Junction', mapX: 430, mapY: 310, radius: 25, severity: 'low', delayMinutes: 4 },
+  { name: 'Borivali West Flyover', mapX: 195, mapY: 175, radius: 22, severity: 'medium', delayMinutes: 6 },
 ];
 
 // ---- SAFEST ROUTE CALCULATOR ----

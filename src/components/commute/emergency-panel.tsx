@@ -117,9 +117,9 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
       {/* Emergency Events Card */}
       <Card className="border-red-500/20 relative overflow-hidden">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <AlertTriangle className="size-4 text-red-400" />
-            Emergency Dispatch Center
+            <span>Emergency Dispatch</span>
             {activeEmergencies.length > 0 && (
               <Badge className="bg-red-500/20 text-red-400 border-red-500/40 text-[10px] px-1.5">
                 {activeEmergencies.length} ACTIVE
@@ -128,7 +128,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-hidden">
-          <ScrollArea className="max-h-48">
+          <ScrollArea className="max-h-40 sm:max-h-48">
             <div className="space-y-2 pr-2">
               {emergencies.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No emergencies reported.</p>
@@ -145,8 +145,8 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
                       transition={{ duration: 0.3 }}
                       className={
                         emg.resolved
-                          ? 'rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2.5 text-xs'
-                          : 'rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-xs'
+                          ? 'rounded-lg border border-green-500/20 bg-green-500/5 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs'
+                          : 'rounded-lg border border-red-500/20 bg-red-500/5 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs'
                       }
                     >
                         <div className="flex items-start gap-3">
@@ -170,7 +170,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
                                 <Users className="size-3" /> {emg.passengersStranded} stranded
                               </span>
                             </div>
-                            <p className="mt-1 text-muted-foreground leading-relaxed">{emg.message}</p>
+                            <p className="mt-1 text-muted-foreground leading-relaxed line-clamp-2">{emg.message}</p>
                             <div className="mt-1.5 flex items-center gap-3 flex-wrap">
                               <span className="flex items-center gap-1 text-muted-foreground/60">
                                 <MapPin className="size-3" /> {emg.stopName}
@@ -183,23 +183,23 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
                               </span>
                             </div>
                             {!emg.resolved && (
-                              <div className="mt-2 flex items-center gap-2">
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
                                 <Button
                                   size="sm"
-                                  className="h-7 text-[11px] px-3"
+                                  className="h-7 text-[10px] sm:text-[11px] px-2 sm:px-3"
                                   style={{ backgroundColor: '#14b8a6', color: '#0a0a0a' }}
                                   onClick={() => handleSelectEmergency(emg)}
                                 >
-                                  <Navigation className="size-3 mr-1" />
-                                  Dispatch to Location
+                                  <Navigation className="size-3 mr-0.5 sm:mr-1" />
+                                  <span className="hidden sm:inline">Dispatch to Location</span><span className="sm:hidden">Dispatch</span>
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 text-[11px] text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                                  className="h-7 text-[10px] sm:text-[11px] text-green-400 hover:text-green-300 hover:bg-green-500/10"
                                   onClick={() => handleResolveEmergency(emg.id)}
                                 >
-                                  <CheckCircle2 className="size-3 mr-1" />
+                                  <CheckCircle2 className="size-3 mr-0.5 sm:mr-1" />
                                   Resolve
                                 </Button>
                               </div>

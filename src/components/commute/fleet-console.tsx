@@ -126,18 +126,22 @@ export function FleetConsole() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  // Simulate new emergencies
+  // Simulate new emergencies (rate-limited, respects resolved count)
   useEffect(() => {
     const schedule = () => {
-      const delay = 20000 + Math.random() * 20000;
+      const delay = 90000 + Math.random() * 120000; // 90s – 210s
       return setTimeout(() => {
-        const ev = generateRandomEmergency();
-        setEmergencies(prev => [ev, ...prev].slice(0, 20));
-        if (!playedIds.current.has(ev.id)) {
-          playedIds.current.add(ev.id);
-          playAlertSound(ev.type);
-        }
-        setAlerts(prev => [{ type: ev.type, vehicleId: ev.vehicleId, routeName: ev.routeName, message: ev.message, timestamp: ev.timestamp }, ...prev].slice(0, 50));
+        setEmergencies(prev => {
+          const activeCount = prev.filter(e => !e.resolved).length;
+          if (activeCount >= 4) return prev; // cap at 4 active
+          const ev = generateRandomEmergency();
+          if (!playedIds.current.has(ev.id)) {
+            playedIds.current.add(ev.id);
+            playAlertSound(ev.type);
+          }
+          setAlerts(alertPrev => [{ type: ev.type, vehicleId: ev.vehicleId, routeName: ev.routeName, message: ev.message, timestamp: ev.timestamp }, ...alertPrev].slice(0, 50));
+          return [ev, ...prev].slice(0, 20);
+        });
         schedule();
       }, delay);
     };
@@ -181,13 +185,13 @@ export function FleetConsole() {
       <AnimatePresence>
         {activeEmergencies.length > 0 && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
-            <div className="flex items-center justify-between rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2.5">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between rounded-lg border border-red-500/50 bg-red-500/10 px-3 sm:px-4 py-2 sm:py-2.5">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }}>
-                  <AlertTriangle className="size-5 text-red-400" />
+                  <AlertTriangle className="size-4 sm:size-5 text-red-400" />
                 </motion.div>
                 <div>
-                  <p className="text-sm font-bold text-red-400">{activeEmergencies.length} Active Emergenc{activeEmergencies.length === 1 ? 'y' : 'ies'}</p>
+                  <p className="text-xs sm:text-sm font-bold text-red-400">{activeEmergencies.length} Active Emergenc{activeEmergencies.length === 1 ? 'y' : 'ies'}</p>
                   <p className="text-xs text-red-300/70">{activeEmergencies.reduce((s, e) => s + e.passengersStranded, 0)} passengers need assistance</p>
                 </div>
               </div>
@@ -219,8 +223,8 @@ export function FleetConsole() {
       />
 
       {/* Main grid + sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {loading ? Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="animate-pulse"><CardContent className="space-y-3"><div className="h-4 w-2/3 rounded bg-muted" /><div className="h-2 w-full rounded bg-muted" /><div className="h-4 w-1/3 rounded bg-muted" /></CardContent></Card>
           )) : routeStatuses.map(route => {
