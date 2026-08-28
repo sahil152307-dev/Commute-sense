@@ -53,15 +53,16 @@ function generatePeople(count: number, canvasW: number, canvasH: number): Person
   ];
 
   // Define zones where people's FEET can appear (body extends upward from y)
+  // ALL zones are on the bus stop / sidewalk side (right side) — NEVER on the road or bus
   const zones = [
-    // Zone A: near bus shelter entrance (sidewalk)
-    { xMin: canvasW * 0.55, xMax: canvasW * 0.65, yMin: canvasH * 0.70, yMax: canvasH * 0.78 },
-    // Zone B: inside bus shelter
-    { xMin: canvasW * 0.62, xMax: canvasW * 0.88, yMin: canvasH * 0.40, yMax: canvasH * 0.72 },
-    // Zone C: platform/far sidewalk (below road)
-    { xMin: canvasW * 0.15, xMax: canvasW * 0.45, yMin: canvasH * 0.76, yMax: canvasH * 0.90 },
-    // Zone D: near bus front, on sidewalk
-    { xMin: canvasW * 0.02, xMax: canvasW * 0.12, yMin: canvasH * 0.70, yMax: canvasH * 0.80 },
+    // Zone A: Inside bus shelter (standing, waiting)
+    { xMin: canvasW * 0.63, xMax: canvasW * 0.87, yMin: canvasH * 0.55, yMax: canvasH * 0.72 },
+    // Zone B: Shelter entrance / sidewalk right in front of shelter
+    { xMin: canvasW * 0.55, xMax: canvasW * 0.66, yMin: canvasH * 0.72, yMax: canvasH * 0.78 },
+    // Zone C: Platform area below shelter
+    { xMin: canvasW * 0.62, xMax: canvasW * 0.88, yMin: canvasH * 0.80, yMax: canvasH * 0.92 },
+    // Zone D: Far sidewalk to the right of shelter
+    { xMin: canvasW * 0.89, xMax: canvasW * 0.97, yMin: canvasH * 0.72, yMax: canvasH * 0.85 },
   ];
 
   for (let i = 0; i < count; i++) {
@@ -73,8 +74,8 @@ function generatePeople(count: number, canvasW: number, canvasH: number): Person
       y: zone.yMin + Math.random() * (zone.yMax - zone.yMin),
       confidence: 0.78 + Math.random() * 0.21,
       id: i + 1,
-      vx: (Math.random() - 0.5) * 0.02,
-      vy: (Math.random() - 0.5) * 0.015,
+      vx: (Math.random() - 0.5) * 0.003,
+      vy: (Math.random() - 0.5) * 0.002,
       color: clothingColors[Math.floor(Math.random() * clothingColors.length)],
       bodyH: bh,
       bodyW: bw,
@@ -272,189 +273,338 @@ export function CrowdMonitor() {
     ctx.fillStyle = '#c0c8d0';
     ctx.fillRect(0, H * 0.80, W, H * 0.20);
 
-    // ===== BUS SHELTER =====
+    // ===== BUS SHELTER (opaque, realistic) =====
     const shelterX = W * 0.6;
     const shelterY = H * 0.30;
     const shelterW = W * 0.30;
     const shelterH = H * 0.48;
 
-    // Shelter back panel - SOLID and visible
-    ctx.fillStyle = 'rgba(160,175,190,0.85)';
+    // Shelter back wall — fully opaque, dark metal/glass
+    const shelterWallGrad = ctx.createLinearGradient(shelterX, shelterY, shelterX + shelterW, shelterY);
+    shelterWallGrad.addColorStop(0, '#8a96a4');
+    shelterWallGrad.addColorStop(0.5, '#9aa8b6');
+    shelterWallGrad.addColorStop(1, '#8a96a4');
+    ctx.fillStyle = shelterWallGrad;
     ctx.fillRect(shelterX, shelterY, shelterW, shelterH);
-    ctx.strokeStyle = 'rgba(140,155,170,0.5)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#6a7a8a';
+    ctx.lineWidth = 2;
     ctx.strokeRect(shelterX, shelterY, shelterW, shelterH);
 
-    // Glass panels inside shelter
+    // Large glass panels inside shelter (semi-transparent blue-tinted)
     const glassCount = 3;
-    const glassGap = shelterW / (glassCount + 1);
-    for (let gi = 1; gi <= glassCount; gi++) {
-      const gx = shelterX + gi * glassGap - 4;
-      const gy = shelterY + 10;
-      const gw = 8;
-      const gh = shelterH - 30;
-      ctx.fillStyle = 'rgba(140,180,210,0.75)';
+    const glassPad = 12;
+    const totalGlassW = shelterW - glassPad * 2 - (glassCount - 1) * 6;
+    const glassW = totalGlassW / glassCount;
+    for (let gi = 0; gi < glassCount; gi++) {
+      const gx = shelterX + glassPad + gi * (glassW + 6);
+      const gy = shelterY + 12;
+      const gw = glassW;
+      const gh = shelterH * 0.55;
+      // Glass with subtle blue tint and reflection
+      const glassGrad = ctx.createLinearGradient(gx, gy, gx + gw, gy);
+      glassGrad.addColorStop(0, 'rgba(100,140,180,0.5)');
+      glassGrad.addColorStop(0.3, 'rgba(120,165,210,0.4)');
+      glassGrad.addColorStop(0.7, 'rgba(100,140,180,0.45)');
+      glassGrad.addColorStop(1, 'rgba(80,120,160,0.5)');
+      ctx.fillStyle = glassGrad;
       ctx.fillRect(gx, gy, gw, gh);
-      ctx.strokeStyle = 'rgba(120,150,180,0.8)';
-      ctx.lineWidth = 1;
+      // Glass frame
+      ctx.strokeStyle = '#6a7a8a';
+      ctx.lineWidth = 1.5;
       ctx.strokeRect(gx, gy, gw, gh);
+      // Reflection stripe
+      ctx.fillStyle = 'rgba(200,220,240,0.15)';
+      ctx.fillRect(gx + 2, gy + 2, gw * 0.3, gh - 4);
     }
 
-    // Shelter roof - thicker and darker
-    ctx.fillStyle = 'rgba(80,95,110,0.9)';
-    ctx.fillRect(shelterX - 8, shelterY, shelterW + 16, 8);
-
-    // Shelter roof supports
-    ctx.strokeStyle = 'rgba(80,95,110,0.7)';
-    ctx.lineWidth = 2;
+    // Shelter roof — thick, dark, extends beyond shelter
+    const roofGrad = ctx.createLinearGradient(0, shelterY - 4, 0, shelterY + 10);
+    roofGrad.addColorStop(0, '#3a4a5a');
+    roofGrad.addColorStop(1, '#556676');
+    ctx.fillStyle = roofGrad;
+    ctx.fillRect(shelterX - 12, shelterY - 2, shelterW + 24, 10);
+    // Roof edge highlight
+    ctx.strokeStyle = '#7a8a9a';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(shelterX, shelterY + 8);
-    ctx.lineTo(shelterX, shelterY + shelterH);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(shelterX + shelterW, shelterY + 8);
-    ctx.lineTo(shelterX + shelterW, shelterY + shelterH);
+    ctx.moveTo(shelterX - 12, shelterY - 2);
+    ctx.lineTo(shelterX + shelterW + 12, shelterY - 2);
     ctx.stroke();
 
-    // Horizontal support bar in the middle of the shelter
-    ctx.strokeStyle = 'rgba(100,115,130,0.7)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(shelterX, shelterY + shelterH * 0.5);
-    ctx.lineTo(shelterX + shelterW, shelterY + shelterH * 0.5);
-    ctx.stroke();
+    // Shelter vertical pillars (thick, metal)
+    const pillarW = 5;
+    const pillarColor = '#556676';
+    ctx.fillStyle = pillarColor;
+    ctx.fillRect(shelterX - 1, shelterY + 8, pillarW, shelterH - 8);
+    ctx.fillRect(shelterX + shelterW - pillarW + 1, shelterY + 8, pillarW, shelterH - 8);
+    // Middle pillar
+    ctx.fillRect(shelterX + shelterW * 0.5 - pillarW / 2, shelterY + 8, pillarW, shelterH - 8);
 
-    // Timetable / sign board inside shelter
-    const tbX = shelterX + shelterW * 0.6;
+    // Horizontal support bars
+    ctx.fillStyle = '#5a6a7a';
+    ctx.fillRect(shelterX, shelterY + shelterH * 0.55, shelterW, 3);
+    ctx.fillRect(shelterX, shelterY + shelterH - 22, shelterW, 3);
+
+    // Timetable / info board (solid white panel)
+    const tbX = shelterX + shelterW * 0.55;
     const tbY = shelterY + 14;
-    const tbW = shelterW * 0.32;
-    const tbH = 18;
-    ctx.fillStyle = 'rgba(220,230,240,0.9)';
+    const tbW = shelterW * 0.38;
+    const tbH = 22;
+    ctx.fillStyle = '#e8edf2';
     ctx.fillRect(tbX, tbY, tbW, tbH);
-    ctx.strokeStyle = 'rgba(140,150,160,0.7)';
+    ctx.strokeStyle = '#8a96a4';
     ctx.lineWidth = 1;
     ctx.strokeRect(tbX, tbY, tbW, tbH);
-    // Timetable text lines
-    ctx.fillStyle = 'rgba(60,70,80,0.6)';
-    ctx.font = '6px monospace';
-    ctx.fillText('ROUTE 42', tbX + 3, tbY + 7);
-    ctx.fillText('12:30  12:45', tbX + 3, tbY + 15);
+    ctx.fillStyle = '#2a3a4a';
+    ctx.font = 'bold 6px monospace';
+    ctx.fillText('ROUTE 42', tbX + 4, tbY + 8);
+    ctx.fillStyle = '#4a5a6a';
+    ctx.font = '5.5px monospace';
+    ctx.fillText('12:30 → 12:45', tbX + 4, tbY + 17);
 
-    // Shelter bench
-    ctx.fillStyle = 'rgba(120,130,140,0.5)';
-    ctx.fillRect(shelterX + 10, shelterY + shelterH - 20, shelterW - 20, 5);
+    // Shelter bench (solid, wooden)
+    const benchGrad = ctx.createLinearGradient(0, shelterY + shelterH - 18, 0, shelterY + shelterH - 10);
+    benchGrad.addColorStop(0, '#5a4a3a');
+    benchGrad.addColorStop(1, '#6a5a48');
+    ctx.fillStyle = benchGrad;
+    ctx.fillRect(shelterX + 12, shelterY + shelterH - 18, shelterW - 24, 6);
+    // Bench legs
+    ctx.fillStyle = '#4a3a2a';
+    ctx.fillRect(shelterX + 18, shelterY + shelterH - 12, 3, 10);
+    ctx.fillRect(shelterX + shelterW - 21, shelterY + shelterH - 12, 3, 10);
 
     // Shelter label
-    ctx.font = '9px monospace';
-    ctx.fillStyle = 'rgba(80,90,100,0.5)';
-    ctx.fillText('BUS SHELTER', shelterX + 8, shelterY - 4);
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = 'rgba(60,70,80,0.7)';
+    ctx.fillText('BUS SHELTER', shelterX + 6, shelterY - 6);
 
-    // ===== YELLOW BUS =====
-    const busX = W * 0.08;
-    const busY = H * 0.44;
-    const busW = W * 0.38;
-    const busH = H * 0.18;
+    // ===== REALISTIC YELLOW BUS (BEST MSRTC-style) =====
+    const busX = W * 0.06;
+    const busY = H * 0.42;
+    const busW = W * 0.40;
+    const busH = H * 0.20;
 
-    // Bus ground shadow - larger and more prominent
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    // Bus ground shadow — wide and soft
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
-    ctx.ellipse(busX + busW / 2, busY + busH + 5, busW * 0.48, 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(busX + busW / 2, busY + busH + 6, busW * 0.52, 10, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Bus body - taller
-    ctx.fillStyle = '#f5c518';
+    // Bus undercarriage / chassis (dark strip below body)
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(busX + 2, busY + busH - 2, busW - 4, 6);
+
+    // Bus body — rounded rect with gradient
+    const busBodyGrad = ctx.createLinearGradient(0, busY, 0, busY + busH);
+    busBodyGrad.addColorStop(0, '#fdd835');
+    busBodyGrad.addColorStop(0.3, '#f9c813');
+    busBodyGrad.addColorStop(0.7, '#f0b800');
+    busBodyGrad.addColorStop(1, '#d4a000');
+    ctx.fillStyle = busBodyGrad;
     ctx.beginPath();
-    ctx.roundRect(busX, busY, busW, busH, [4, 4, 2, 2]);
+    ctx.roundRect(busX, busY, busW, busH, [5, 5, 2, 2]);
     ctx.fill();
-    ctx.strokeStyle = '#c9a20d';
+    // Bus body outline
+    ctx.strokeStyle = '#a08000';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Bus roof highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(busX + 2, busY + 2, busW - 4, busH * 0.12);
+    // Top highlight (sun reflection on roof)
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(busX + 3, busY + 2, busW - 6, busH * 0.08);
 
-    // Decorative band / horizontal stripe along the middle
+    // Lower dark band (skirt panel)
     ctx.fillStyle = '#8b1a1a';
-    ctx.fillRect(busX, busY + busH * 0.55, busW, busH * 0.08);
-
-    // Bus windows - taller and more prominent
-    ctx.fillStyle = '#2a3a5c';
-    const winStartX = busX + busW * 0.2;
-    const winW = busW * 0.1;
-    const winH = busH * 0.55;
-    const winY = busY + busH * 0.12;
-    for (let i = 0; i < 5; i++) {
-      ctx.fillRect(winStartX + i * (winW + 4), winY, winW, winH);
-      // Window frame
-      ctx.strokeStyle = '#c9a20d';
-      ctx.lineWidth = 0.8;
-      ctx.strokeRect(winStartX + i * (winW + 4), winY, winW, winH);
-      // Window reflection
-      ctx.fillStyle = 'rgba(150,180,220,0.2)';
-      ctx.fillRect(winStartX + i * (winW + 4), winY, winW * 0.4, winH);
-      ctx.fillStyle = '#2a3a5c';
-    }
-
-    // Windshield - taller
-    ctx.fillStyle = '#1e3050';
-    ctx.beginPath();
-    ctx.roundRect(busX + busW * 0.04, winY, busW * 0.13, winH, 2);
-    ctx.fill();
+    ctx.fillRect(busX + 1, busY + busH * 0.72, busW - 2, busH * 0.12);
+    // Gold trim line above skirt
     ctx.strokeStyle = '#c9a20d';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(busX + 1, busY + busH * 0.72);
+    ctx.lineTo(busX + busW - 1, busY + busH * 0.72);
+    ctx.stroke();
+
+    // Windshield — large, curved feel
+    const wsX = busX + busW * 0.02;
+    const wsW = busW * 0.14;
+    const wsH = busH * 0.50;
+    const wsY = busY + busH * 0.12;
+    const wsGrad = ctx.createLinearGradient(wsX, wsY, wsX, wsY + wsH);
+    wsGrad.addColorStop(0, '#1a3a60');
+    wsGrad.addColorStop(0.5, '#243f6a');
+    wsGrad.addColorStop(1, '#1a3050');
+    ctx.fillStyle = wsGrad;
+    ctx.beginPath();
+    ctx.roundRect(wsX, wsY, wsW, wsH, [3, 0, 0, 0]);
+    ctx.fill();
+    ctx.strokeStyle = '#a08000';
     ctx.lineWidth = 0.8;
     ctx.stroke();
+    // Windshield reflection
+    ctx.fillStyle = 'rgba(120,170,220,0.25)';
+    ctx.fillRect(wsX + 1, wsY + 1, wsW * 0.35, wsH - 2);
 
-    // Side mirror - protruding from the front with arm
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 2;
+    // Side windows — tall, evenly spaced
+    ctx.fillStyle = '#1e3350';
+    const winStartX = busX + busW * 0.20;
+    const winW = busW * 0.10;
+    const winH = busH * 0.48;
+    const winY = busY + busH * 0.13;
+    const winGap = (busW * 0.60) / 5;
+    for (let i = 0; i < 5; i++) {
+      const wx = winStartX + i * winGap;
+      // Window glass
+      const winGrad = ctx.createLinearGradient(wx, winY, wx, winY + winH);
+      winGrad.addColorStop(0, '#1a3050');
+      winGrad.addColorStop(0.4, '#243f6a');
+      winGrad.addColorStop(1, '#1a3050');
+      ctx.fillStyle = winGrad;
+      ctx.fillRect(wx, winY, winW, winH);
+      // Window frame
+      ctx.strokeStyle = '#a08000';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(wx, winY, winW, winH);
+      // Reflection
+      ctx.fillStyle = 'rgba(120,170,220,0.15)';
+      ctx.fillRect(wx + 1, winY + 1, winW * 0.35, winH - 2);
+    }
+
+    // Rear window (smaller, at the back)
+    ctx.fillStyle = '#1e3350';
+    const rwX = busX + busW * 0.86;
+    const rwW = busW * 0.10;
+    ctx.fillRect(rwX, winY, rwW, winH);
+    ctx.strokeStyle = '#a08000';
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(rwX, winY, rwW, winH);
+
+    // Door outline (near front, after windshield)
+    const doorX = busX + busW * 0.17;
+    const doorW = 3;
+    ctx.strokeStyle = '#8a7000';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(busX, busY + busH * 0.22);
-    ctx.lineTo(busX - 12, busY + busH * 0.18);
+    ctx.moveTo(doorX, winY);
+    ctx.lineTo(doorX, winY + winH + busH * 0.15);
     ctx.stroke();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(busX - 15, busY + busH * 0.12, 10, 8);
-    ctx.fillStyle = 'rgba(100,140,180,0.5)';
-    ctx.fillRect(busX - 14, busY + busH * 0.13, 8, 6);
 
-    // Front indicator light (amber/yellow)
-    ctx.fillStyle = '#f5a623';
-    ctx.fillRect(busX, busY + busH * 0.7, 4, 5);
+    // Side mirror — protruding arm
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(busX, busY + busH * 0.25);
+    ctx.lineTo(busX - 14, busY + busH * 0.20);
+    ctx.stroke();
+    // Mirror housing
+    ctx.fillStyle = '#1a1a22';
+    ctx.beginPath();
+    ctx.roundRect(busX - 18, busY + busH * 0.12, 12, 10, 2);
+    ctx.fill();
+    // Mirror glass
+    ctx.fillStyle = 'rgba(80,120,160,0.6)';
+    ctx.fillRect(busX - 17, busY + busH * 0.13, 10, 8);
 
-    // Bus destination sign
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(busX + 6, busY + 4, busW * 0.5, 12);
-    ctx.font = 'bold 8px monospace';
+    // Front headlight (bright)
+    ctx.fillStyle = '#fef9c3';
+    ctx.beginPath();
+    ctx.roundRect(busX - 1, busY + busH * 0.18, 5, 6, 1);
+    ctx.fill();
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.roundRect(busX - 1, busY + busH * 0.18, 4, 5, 1);
+    ctx.fill();
+
+    // Front indicator / turn signal (amber)
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.roundRect(busX - 1, busY + busH * 0.28, 4, 4, 1);
+    ctx.fill();
+
+    // Rear lights (red)
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(busX + busW - 4, busY + busH * 0.20, 5, 5);
+    ctx.fillStyle = '#fca5a5';
+    ctx.fillRect(busX + busW - 3, busY + busH * 0.21, 3, 3);
+
+    // Destination sign (LED display style)
+    const dsX = busX + busW * 0.04;
+    const dsY = busY + 4;
+    const dsW = busW * 0.50;
+    const dsH = 14;
+    ctx.fillStyle = '#0a0a12';
+    ctx.beginPath();
+    ctx.roundRect(dsX, dsY, dsW, dsH, 2);
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // Route number
+    ctx.font = 'bold 9px monospace';
     ctx.fillStyle = '#f5c518';
-    ctx.fillText(crowd.stopName.toUpperCase(), busX + 10, busY + 13);
+    ctx.fillText('42', dsX + 5, dsY + 11);
+    // Destination name
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText(crowd.stopName.toUpperCase(), dsX + 22, dsY + 11);
 
-    // Bus wheels
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath(); ctx.arc(busX + busW * 0.18, busY + busH + 1, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(busX + busW * 0.82, busY + busH + 1, 6, 0, Math.PI * 2); ctx.fill();
-    // Wheel hubcaps
+    // Front bumper
     ctx.fillStyle = '#555';
-    ctx.beginPath(); ctx.arc(busX + busW * 0.18, busY + busH + 1, 2.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(busX + busW * 0.82, busY + busH + 1, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(busX - 2, busY + busH * 0.60, 4, busH * 0.30);
 
-    // ===== MOVE PEOPLE =====
+    // Exhaust pipe
+    ctx.fillStyle = '#3a3a3a';
+    ctx.beginPath();
+    ctx.ellipse(busX + busW * 0.15, busY + busH + 5, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Wheels — large, detailed
+    const wheelR = 7;
+    const wheelY = busY + busH + 2;
+    [busX + busW * 0.18, busX + busW * 0.82].forEach(wx => {
+      // Tire
+      ctx.fillStyle = '#1a1a22';
+      ctx.beginPath(); ctx.arc(wx, wheelY, wheelR, 0, Math.PI * 2); ctx.fill();
+      // Tire tread ring
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(wx, wheelY, wheelR - 1, 0, Math.PI * 2); ctx.stroke();
+      // Hubcap
+      ctx.fillStyle = '#888';
+      ctx.beginPath(); ctx.arc(wx, wheelY, 3, 0, Math.PI * 2); ctx.fill();
+      // Hub center
+      ctx.fillStyle = '#555';
+      ctx.beginPath(); ctx.arc(wx, wheelY, 1.5, 0, Math.PI * 2); ctx.fill();
+      // Hubcap spokes
+      ctx.strokeStyle = '#777';
+      ctx.lineWidth = 0.5;
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+        ctx.beginPath();
+        ctx.moveTo(wx + Math.cos(a) * 1.5, wheelY + Math.sin(a) * 1.5);
+        ctx.lineTo(wx + Math.cos(a) * 3, wheelY + Math.sin(a) * 3);
+        ctx.stroke();
+      }
+    });
+
+    // Mud flaps
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(busX + busW * 0.18 - 6, wheelY + wheelR - 2, 12, 4);
+    ctx.fillRect(busX + busW * 0.82 - 6, wheelY + wheelR - 2, 12, 4);
+
+    // ===== MOVE PEOPLE (nearly stationary — only micro-shuffle) =====
     const people = peopleRef.current;
     const updated = people.map((p) => {
+      // Tiny micro-movement to look alive but essentially standing still
       let nx = p.x + p.vx;
       let ny = p.y + p.vy;
-      let nvx = p.vx;
-      let nvy = p.vy;
-      // Keep within their zones
-      if (nx < 30 || nx > W - 30) nvx *= -1;
-      if (ny < H * 0.35 || ny > H * 0.92) nvy *= -1;
-      // Slight random direction change
-      if (Math.random() < 0.005) {
-        nvx = (Math.random() - 0.5) * 0.02;
-        nvy = (Math.random() - 0.5) * 0.015;
+      // Rarely change direction (once every ~500 frames)
+      if (Math.random() < 0.002) {
+        p.vx = (Math.random() - 0.5) * 0.003;
+        p.vy = (Math.random() - 0.5) * 0.002;
       }
+      // Clamp to a small radius around original position (stay in place)
       nx = Math.max(30, Math.min(W - 30, nx));
-      ny = Math.max(H * 0.35, Math.min(H * 0.92, ny));
-      return { ...p, x: nx, y: ny, vx: nvx, vy: nvy };
+      ny = Math.max(H * 0.50, Math.min(H * 0.94, ny));
+      return { ...p, x: nx, y: ny };
     });
     peopleRef.current = updated;
 

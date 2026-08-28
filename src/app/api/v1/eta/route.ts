@@ -1,9 +1,41 @@
 import { NextResponse } from 'next/server';
 import { routes, etaData, stations } from '@/lib/mock-data';
 
+interface WeatherInfo {
+  weather: string;
+  weatherFactor: number;
+  temperature: number;
+  humidity?: number;
+  windSpeed?: number;
+  icon?: string;
+  description?: string;
+  city?: string;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const stationId = searchParams.get('stationId');
+
+  // Fetch real weather from our weather API
+  let weather: WeatherInfo;
+  try {
+    const weatherRes = await fetch('http://localhost:3000/api/v1/weather');
+    if (weatherRes.ok) {
+      weather = await weatherRes.json();
+    } else {
+      weather = {
+        weather: etaData.weather,
+        weatherFactor: etaData.weatherFactor,
+        temperature: 32,
+      };
+    }
+  } catch {
+    weather = {
+      weather: etaData.weather,
+      weatherFactor: etaData.weatherFactor,
+      temperature: 32,
+    };
+  }
 
   const station = stations.find(s => s.id === stationId);
 
@@ -11,7 +43,7 @@ export async function GET(request: Request) {
     ? station.routeIds.map(rId => {
         const route = routes.find(r => r.routeId === rId);
         const baseMinutes = 8 + Math.floor(Math.random() * 15);
-        const weatherAdj = etaData.weatherFactor;
+        const weatherAdj = weather.weatherFactor;
         const peakAdj = etaData.peakFactor;
         const congestionAdj = route?.congestionIndex === 'High' ? 1.3 : route?.congestionIndex === 'Moderate' ? 1.15 : 1.0;
         const eta = Math.round(baseMinutes * weatherAdj * peakAdj * congestionAdj);
@@ -31,11 +63,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     stationId: stationId ?? '',
     stationName: station?.name ?? 'All Stations',
-    weather: {
-      weather: etaData.weather,
-      weatherFactor: etaData.weatherFactor,
-      temperature: 32,
-    },
+    weather,
     congestionZones: etaData.congestionZones,
     routes: stationETAs,
     updatedAt: new Date().toISOString(),

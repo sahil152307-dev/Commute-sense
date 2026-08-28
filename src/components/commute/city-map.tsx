@@ -105,12 +105,12 @@ export function CityMap({ onStationClick }: CityMapProps) {
       const pathLen = v.route.path.length;
       // Random starting position spread across the route
       const startPos = (i / activeVehiclesOnRoutes.length) * (pathLen - 1) + Math.random() * 0.5;
-      // Speed based on vehicle speed (slower buses = slower movement)
-      // Scale so a bus takes ~30-60 seconds to traverse one segment
-      const baseSpeed = 0.003 + (v.speedKmph / 100) * 0.004;
+      // Speed based on vehicle speed — VERY slow for realistic real-time feel
+      // A bus takes ~2-4 minutes to traverse a full route
+      const baseSpeed = 0.0008 + (v.speedKmph / 100) * 0.001;
       positions[v.vehicleId] = {
         progress: Math.min(startPos, pathLen - 1),
-        speed: baseSpeed + Math.random() * 0.002,
+        speed: baseSpeed + Math.random() * 0.0005,
         direction: Math.random() > 0.5 ? 1 : -1,
       };
     });
@@ -130,11 +130,15 @@ export function CityMap({ onStationClick }: CityMapProps) {
     []
   );
 
-  // Animation loop: update positions every 50ms for smooth movement
+  // Track pause timers for station stops
+  const pauseTimersRef = useRef<Record<string, number>>({});
+
+  // Animation loop: update positions every 100ms for realistic movement
   useEffect(() => {
     const interval = setInterval(() => {
       if (!initializedRef.current) return;
       const positions = vehiclePositionsRef.current;
+      const pauseTimers = pauseTimersRef.current;
       let changed = false;
 
       activeVehiclesOnRoutes.forEach((v) => {
@@ -143,18 +147,44 @@ export function CityMap({ onStationClick }: CityMapProps) {
         const pathLen = v.route.path.length;
         if (pathLen < 2) return;
 
+        // Check if this bus is paused at a station
+        const pauseKey = v.vehicleId;
+        if (pauseTimers[pauseKey] && pauseTimers[pauseKey] > 0) {
+          pauseTimers[pauseKey] -= 1;
+          changed = true;
+          return; // Skip movement while paused
+        }
+
         pos.progress += pos.speed * pos.direction;
 
-        // Bounce at endpoints
+        // Check if approaching a station point — pause briefly
+        for (let si = 0; si < pathLen; si++) {
+          const dist = Math.abs(pos.progress - si);
+          if (dist < pos.speed * 1.2 && !pauseTimers[`${pauseKey}_${si}`]) {
+            // Snap to station and pause for 20-40 ticks (2-4 seconds)
+            pos.progress = si;
+            pauseTimers[pauseKey] = 20 + Math.floor(Math.random() * 20);
+            pauseTimers[`${pauseKey}_${si}`] = 1; // Mark this station as visited
+            break;
+          }
+        }
+
+        // Bounce at endpoints with longer pause
         if (pos.progress >= pathLen - 1) {
           pos.progress = pathLen - 1;
           pos.direction = -1;
-          // Small pause at endpoint (simulate stop)
-          pos.progress -= 0.01;
+          pauseTimers[pauseKey] = 40 + Math.floor(Math.random() * 20);
+          // Reset station visit markers for return trip
+          for (let si = 0; si < pathLen; si++) {
+            delete pauseTimers[`${pauseKey}_${si}`];
+          }
         } else if (pos.progress <= 0) {
           pos.progress = 0;
           pos.direction = 1;
-          pos.progress += 0.01;
+          pauseTimers[pauseKey] = 40 + Math.floor(Math.random() * 20);
+          for (let si = 0; si < pathLen; si++) {
+            delete pauseTimers[`${pauseKey}_${si}`];
+          }
         }
         changed = true;
       });
@@ -167,7 +197,7 @@ export function CityMap({ onStationClick }: CityMapProps) {
         }
         setVehicleSnapshot(snapshot);
       }
-    }, 50); // 50ms = 20 FPS smooth movement
+    }, 100); // 100ms = 10 FPS — slower update rate for realistic feel
 
     return () => clearInterval(interval);
   }, [activeVehiclesOnRoutes]);

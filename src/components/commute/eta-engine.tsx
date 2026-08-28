@@ -42,6 +42,11 @@ interface WeatherInfo {
   weather: string;
   weatherFactor: number;
   temperature: number;
+  humidity?: number;
+  windSpeed?: number;
+  icon?: string;
+  description?: string;
+  city?: string;
 }
 
 interface RouteETA {
@@ -230,7 +235,6 @@ export function ETAEngine() {
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Weather Card */}
                     <Card className="py-4 gap-3 border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
                       <CardContent className="p-4">
                         <div className="flex items-center gap-3">
@@ -239,7 +243,7 @@ export function ETAEngine() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-muted-foreground font-medium">
-                              Weather Condition
+                              Weather{etaData.weather.city ? ` - ${etaData.weather.city}` : ''}
                             </p>
                             <p className="text-sm font-semibold text-foreground truncate">
                               {etaData.weather.weather}
@@ -249,12 +253,18 @@ export function ETAEngine() {
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Thermometer className="size-3.5 text-amber-400" />
-                            <span>{etaData.weather.temperature}°C</span>
+                            <span className="tabular-nums">{etaData.weather.temperature}°C</span>
+                            {etaData.weather.humidity != null && (
+                              <span className="ml-2">{etaData.weather.humidity}% hum</span>
+                            )}
+                            {etaData.weather.windSpeed != null && (
+                              <span className="ml-2">{etaData.weather.windSpeed}km/h</span>
+                            )}
                           </div>
                           <div className="text-xs">
                             <span className="text-muted-foreground">Delay factor </span>
                             <span className="font-semibold text-amber-400 tabular-nums">
-                              ×{etaData.weather.weatherFactor.toFixed(2)}
+                              x{etaData.weather.weatherFactor.toFixed(2)}
                             </span>
                           </div>
                         </div>
