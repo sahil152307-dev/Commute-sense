@@ -219,3 +219,35 @@ Stage Summary:
 - Bus no longer overlaps shelter (shelter in background above road)
 - No more blank screen flashes (ResizeObserver debounced)
 - Boarding people approach from sidewalk below bus, visible with bounding boxes
+
+---
+Task ID: 6
+Agent: Main Orchestrator
+Task: Fix CCTV crowd monitor — bus overlapping bus stop, blank screen, boarding visibility + update weather API key
+
+Work Log:
+- Updated weather API key from `c6941dd3e3ff4942bdd164638261906` to `523946ed634a403c946190629262808` in `/api/v1/weather/route.ts`
+- Completely rewrote `crowd-monitor.tsx` canvas layout:
+  - Moved shelter from top (y=0.28-0.50, in sky/buildings area) to bottom platform (y=0.73-0.95, where people wait)
+  - Repositioned all 4 people zones to platform area (y=0.77-0.93) — no more zones under bus path
+  - Bus stays on road (y=0.48-0.68), stops at LEFT (stopX=0.22), door faces RIGHT toward shelter
+  - Shelter drawn as posts + canopy (semi-transparent overlay after people)
+  - Correct drawing order: background → shelter posts → bus → people → shelter canopy
+- Fixed blank screen issue:
+  - Added canvas size guard in draw loop: `if (W < 10 || H < 10)` skip frame
+  - Removed `liveCount` from ResizeObserver useEffect dependency (was causing disconnect/reconnect every 3s)
+  - Added minimum size check in ResizeObserver (skip if < 20px)
+  - Used `liveCountRef.current` in resize callback to avoid stale closure
+- Enhanced boarding people visibility:
+  - Boarding people get GREEN bounding boxes and corner brackets
+  - "BOARDING" tag displayed above boarding people
+  - Green directional arrow pointing toward bus door
+  - Door position set to sidewalk level (H*0.69) for natural boarding path
+- Verified via Agent Browser: 100% canvas coverage, no blank frames, correct layout colors at all Y positions
+- Lint passes with no errors
+
+Stage Summary:
+- Weather API key updated (new key: 523946ed634a403c946190629262808)
+- CCTV layout fixed: shelter + people on platform (bottom), bus on road (left), no overlap
+- Blank screen bug eliminated (canvas guard + stable ResizeObserver)
+- Boarding animation now clearly visible with green highlights

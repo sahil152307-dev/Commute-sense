@@ -18,7 +18,7 @@ let cachedWeather: {
 } | null = null;
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const API_KEY = 'c6941dd3e3ff4942bdd164638261906';
+const API_KEY = '523946ed634a403c946190629262808';
 const LAT = 19.076; // Mumbai
 const LON = 72.8777;
 
