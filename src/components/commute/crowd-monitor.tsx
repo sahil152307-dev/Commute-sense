@@ -52,21 +52,17 @@ function generatePeople(count: number, canvasW: number, canvasH: number): Person
     '#00695c', // teal dark
   ];
 
-  // Define zones where people's FEET can appear (body extends upward from y)
-  // ALL zones are on the bus stop / sidewalk side (right side) — NEVER on the road or bus
-  const zones = [
-    // Zone A: Inside bus shelter (standing, waiting)
-    { xMin: canvasW * 0.63, xMax: canvasW * 0.87, yMin: canvasH * 0.55, yMax: canvasH * 0.72 },
-    // Zone B: Shelter entrance / sidewalk right in front of shelter
-    { xMin: canvasW * 0.55, xMax: canvasW * 0.66, yMin: canvasH * 0.72, yMax: canvasH * 0.78 },
-    // Zone C: Platform area below shelter
-    { xMin: canvasW * 0.62, xMax: canvasW * 0.88, yMin: canvasH * 0.80, yMax: canvasH * 0.92 },
-    // Zone D: Far sidewalk to the right of shelter
-    { xMin: canvasW * 0.89, xMax: canvasW * 0.97, yMin: canvasH * 0.72, yMax: canvasH * 0.85 },
-  ];
+  // Single narrow zone: people standing in a line along the shelter's left sidewalk edge
+  // This is the only side where people wait — realistic bus stop queue
+  const maxPeople = Math.min(count, 8);
+  const zone = {
+    xMin: canvasW * 0.54,
+    xMax: canvasW * 0.62,
+    yMin: canvasH * 0.70,
+    yMax: canvasH * 0.79,
+  };
 
-  for (let i = 0; i < count; i++) {
-    const zone = zones[i % zones.length];
+  for (let i = 0; i < maxPeople; i++) {
     const bw = 10 + Math.random() * 6;
     const bh = 20 + Math.random() * 10;
     people.push({
