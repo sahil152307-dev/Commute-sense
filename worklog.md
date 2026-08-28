@@ -197,3 +197,25 @@ Stage Summary:
 - Weather shows ESTIMATED badge (API key invalid - will show LIVE with valid key)
 - New Fastest Transport portal with Metro, Auto, E-Rickshaw, Cab, Walking options
 - All changes compile cleanly, lint passes, browser-verified
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix CCTV issues - bus overlap, blank screen, boarding visibility
+
+Work Log:
+- Moved bus stopX from W*0.08 to W*0.26 (closer to shelter)
+- Reduced busW from W*0.38 to W*0.32 (bus ends at 0.58W, shelter at 0.62W - no overlap)
+- Reduced busH from H*0.18 to H*0.16 (slightly smaller, more proportional)
+- Repositioned shelter: from y=0.30-0.78 (spanning road) to y=0.28-0.50 (background, above road)
+- Shelter now clearly a background structure, bus on road below it
+- Fixed blank screen: debounced ResizeObserver with 100ms delay + dimension change check
+- Fixed boarding target Y: from inside bus body (H*0.71) to bus bottom (busY+busH+10)
+- Boarding people now queue at sidewalk level below the bus, clearly visible
+- Verified: 3 rapid screenshots all show consistent content, no blank frames
+- Verified: 4265 teal bounding box pixels present (people rendering)
+- Weather API key c6941dd3e3ff4942bdd164638261906 still returns 401
+
+Stage Summary:
+- Bus no longer overlaps shelter (shelter in background above road)
+- No more blank screen flashes (ResizeObserver debounced)
+- Boarding people approach from sidewalk below bus, visible with bounding boxes

@@ -276,11 +276,11 @@ export function CrowdMonitor() {
     ctx.fillStyle = '#c0c8d0';
     ctx.fillRect(0, H * 0.80, W, H * 0.20);
 
-    // ===== BUS SHELTER =====
-    const shelterX = W * 0.6;
-    const shelterY = H * 0.30;
-    const shelterW = W * 0.30;
-    const shelterH = H * 0.48;
+    // ===== BUS SHELTER (background, above road) =====
+    const shelterX = W * 0.62;
+    const shelterY = H * 0.28;
+    const shelterW = W * 0.28;
+    const shelterH = H * 0.22;
 
     ctx.fillStyle = 'rgba(160,175,190,0.85)';
     ctx.fillRect(shelterX, shelterY, shelterW, shelterH);
@@ -345,10 +345,10 @@ export function CrowdMonitor() {
     ctx.fillText('BUS SHELTER', shelterX + 8, shelterY - 4);
 
     // ===== ANIMATED YELLOW BUS =====
-    const busW = W * 0.38;
-    const busH = H * 0.18;
-    const busRoadY = H * 0.54; // bus rides on the road area
-    const stopX = W * 0.08; // where bus stops (near shelter)
+    const busW = W * 0.32;
+    const busH = H * 0.16;
+    const busRoadY = H * 0.55; // bus rides on the road area
+    const stopX = W * 0.26; // where bus stops (door aligns near shelter)
 
     // Calculate bus phase and position
     const elapsed = (now - busStartTimeRef.current) % BUS_TOTAL_CYCLE;
@@ -534,8 +534,8 @@ export function CrowdMonitor() {
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.fillText(stopLabel, busX + busW / 2 - slW / 2 + 5, busY - 8);
-        // Store door world position for boarding
-        doorPosRef.current = { x: doorX + doorW / 2, y: doorY + doorH };
+        // Store door world position for boarding (at sidewalk level, below bus)
+        doorPosRef.current = { x: doorX + doorW / 2, y: busY + busH + 10 };
       } else {
         // Closed door
         ctx.fillStyle = '#e0b015';
@@ -586,18 +586,18 @@ export function CrowdMonitor() {
       // Skip boarded people (invisible, inside bus)
       if (p.boarded) return p;
 
-      // Boarding people: move toward door
+      // Boarding people: move toward door from sidewalk
       if (p.boarding && doorPos) {
-        const targetX = doorPos.x + (p.id % 3) * 12 - 12; // slight spread
-        const targetY = doorPos.y + 2;
-        const dx = targetX - p.x;
-        const dy = targetY - p.y;
+        const queueX = doorPos.x + (p.id % 3) * 14 - 14;
+        const queueY = doorPos.y;
+        const dx = queueX - p.x;
+        const dy = queueY - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 3) {
-          // Reached the door - board the bus
-          return { ...p, boarded: true, boarding: false, x: targetX, y: targetY };
+        if (dist < 5) {
+          // Reached the bus step - board
+          return { ...p, boarded: true, boarding: false, x: queueX, y: queueY };
         }
-        const speed = 0.8;
+        const speed = 0.6;
         return {
           ...p,
           x: p.x + (dx / dist) * speed,
@@ -724,18 +724,32 @@ export function CrowdMonitor() {
     return () => cancelAnimationFrame(animFrameRef.current);
   }, []);
 
-  // Handle canvas resize
+  // Handle canvas resize (debounced, only if dimensions actually changed)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastW = 0;
+    let lastH = 0;
     const ro = new ResizeObserver(() => {
       const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      peopleRef.current = generatePeople(liveCount, rect.width, rect.height);
+      const newW = Math.round(rect.width * window.devicePixelRatio);
+      const newH = Math.round(rect.height * window.devicePixelRatio);
+      if (newW === lastW && newH === lastH) return; // skip if same size
+      lastW = newW;
+      lastH = newH;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        canvas.width = newW;
+        canvas.height = newH;
+        peopleRef.current = generatePeople(liveCount, rect.width, rect.height);
+      }, 100);
     });
     ro.observe(canvas);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
+    };
   }, [liveCount]);
 
   const maxHist = Math.max(...history, 1);
