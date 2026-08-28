@@ -125,3 +125,21 @@ Stage Summary:
 - People nearly stationary (0.02px/frame velocity)
 - Rescue bus stuck: 30% chance after dispatch, new emergency + toast + alert badge
 - 0 lint errors, 0 runtime errors
+---
+Task ID: 1
+Agent: Main Agent
+Task: Replace crowd-monitor.tsx with user-provided code to fix people being stuck in place
+
+Work Log:
+- Read user-upplied file (Pasted Content_1787929876587.txt, 942 lines)
+- Verified imports (crowdData, simulateCrowdFluctuation) match existing mock-data.ts exports
+- Copied uploaded file to /home/z/my-project/src/components/commute/crowd-monitor.tsx
+- Verified compilation succeeded (no errors in dev.log)
+- Verified via agent-browser + VLM that the page loads correctly
+- Verified via pixel analysis: 3,677 teal bounding box pixels present, 9,185 yellow bus pixels present
+- Confirmed people and bus are both rendering on canvas
+
+Stage Summary:
+- crowd-monitor.tsx replaced with user-provided code (942 lines)
+- Key changes in new code: higher people velocity (0.015/0.01 vs previous 0.003/0.002), 4 zones defined proportionally, animated bus with approach/stop/depart/phases, detailed MSRTC-style bus rendering
+- No compilation errors, page renders correctly
