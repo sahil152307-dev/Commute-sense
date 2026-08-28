@@ -47,6 +47,8 @@ interface WeatherInfo {
   icon?: string;
   description?: string;
   city?: string;
+  live?: boolean;
+  source?: string;
 }
 
 interface RouteETA {
@@ -245,9 +247,17 @@ export function ETAEngine() {
                             <p className="text-xs text-muted-foreground font-medium">
                               Weather{etaData.weather.city ? ` - ${etaData.weather.city}` : ''}
                             </p>
-                            <p className="text-sm font-semibold text-foreground truncate">
-                              {etaData.weather.weather}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-foreground truncate">
+                                {etaData.weather.weather}
+                              </p>
+                              <span className={etaData.weather.live
+                                ? 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              }>
+                                {etaData.weather.live ? 'LIVE' : 'ESTIMATED'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">

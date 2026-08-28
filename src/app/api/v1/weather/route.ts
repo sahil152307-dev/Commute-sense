@@ -11,6 +11,8 @@ let cachedWeather: {
     icon: string;
     description: string;
     city: string;
+    live: boolean;
+    source: string;
   };
   fetchedAt: number;
 } | null = null;
@@ -22,23 +24,16 @@ const LON = 72.8777;
 
 // Map OpenWeatherMap condition codes to human-readable labels + delay factors
 function parseWeatherCondition(code: number, description: string): { label: string; factor: number } {
-  // Thunderstorm
   if (code >= 200 && code < 300) return { label: 'Thunderstorm', factor: 1.35 };
-  // Drizzle
   if (code >= 300 && code < 400) return { label: 'Drizzle', factor: 1.15 };
-  // Rain
   if (code >= 500 && code < 600) return { label: 'Rain', factor: 1.25 };
-  // Snow
   if (code >= 600 && code < 700) return { label: 'Snow', factor: 1.40 };
-  // Fog / Mist / Haze
   if (code >= 700 && code < 800) {
     if (description.toLowerCase().includes('fog')) return { label: 'Dense Fog', factor: 1.30 };
     if (description.toLowerCase().includes('haze')) return { label: 'Haze', factor: 1.20 };
     return { label: 'Mist', factor: 1.15 };
   }
-  // Clear
   if (code === 800) return { label: 'Clear Sky', factor: 1.0 };
-  // Clouds
   if (code > 800 && code < 900) {
     if (code <= 802) return { label: 'Partly Cloudy', factor: 1.05 };
     return { label: 'Overcast', factor: 1.10 };
@@ -54,13 +49,11 @@ export async function GET() {
 
   try {
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${LAT}&lon=${LON}&appid=${API_KEY}&units=metric`;
-    const res = await fetch(url, { next: { revalidate: 300 } }); // Next.js cache for 5 min
+    const res = await fetch(url, { next: { revalidate: 300 } });
 
     if (!res.ok) {
-      const errorText = await res.text();
-      console.error('OpenWeatherMap API error:', res.status, errorText);
-      // Fallback to mock data if API fails
-      return NextResponse.json({
+      console.error('OpenWeatherMap API error:', res.status, await res.text());
+      const fallback = {
         weather: 'Partly Cloudy',
         weatherFactor: 1.05,
         temperature: 32,
@@ -69,7 +62,11 @@ export async function GET() {
         icon: '02d',
         description: 'scattered clouds',
         city: 'Mumbai',
-      });
+        live: false,
+        source: 'Estimated',
+      };
+      cachedWeather = { data: fallback, fetchedAt: Date.now() };
+      return NextResponse.json(fallback);
     }
 
     const data = await res.json();
@@ -81,20 +78,19 @@ export async function GET() {
       weatherFactor: parsed.factor,
       temperature: Math.round(data.main?.temp ?? 32),
       humidity: data.main?.humidity ?? 70,
-      windSpeed: Math.round((data.wind?.speed ?? 0) * 3.6), // m/s to km/h
+      windSpeed: Math.round((data.wind?.speed ?? 0) * 3.6),
       icon: condition?.icon ?? '02d',
       description: condition?.description ?? '',
       city: data.name ?? 'Mumbai',
+      live: true,
+      source: 'OpenWeatherMap',
     };
 
-    // Update cache
     cachedWeather = { data: result, fetchedAt: Date.now() };
-
     return NextResponse.json(result);
   } catch (error) {
     console.error('Weather fetch error:', error);
-    // Fallback
-    return NextResponse.json({
+    const fallback = {
       weather: 'Partly Cloudy',
       weatherFactor: 1.05,
       temperature: 32,
@@ -103,6 +99,10 @@ export async function GET() {
       icon: '02d',
       description: 'scattered clouds',
       city: 'Mumbai',
-    });
+      live: false,
+      source: 'Estimated',
+    };
+    cachedWeather = { data: fallback, fetchedAt: Date.now() };
+    return NextResponse.json(fallback);
   }
 }

@@ -2,18 +2,20 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, Navigation, Ticket } from 'lucide-react';
+import { Eye, Navigation, Ticket, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CrowdMonitor } from './crowd-monitor';
 import { ETAEngine } from './eta-engine';
 import { JourneyPlanner } from './journey-planner';
+import { FastestTransport } from './fastest-transport';
 
-type CommuterTab = 'crowd' | 'eta' | 'journey';
+type CommuterTab = 'crowd' | 'eta' | 'journey' | 'fastest';
 
 const tabs: { id: CommuterTab; label: string; icon: typeof Eye; description: string }[] = [
   { id: 'crowd', label: 'Live Crowd Monitor', icon: Eye, description: 'AI-Powered Passenger Density Tracking' },
   { id: 'eta', label: 'Smart ETA', icon: Navigation, description: 'Predictive Arrival with Congestion Forecast' },
   { id: 'journey', label: 'Journey Planner', icon: Ticket, description: 'Multi-Modal Route & QR Ticket' },
+  { id: 'fastest', label: 'Fastest Transport', icon: Zap, description: 'Alternative Transport When Bus is Delayed' },
 ];
 
 const containerVariants = {
@@ -102,6 +104,11 @@ export function CommuterView() {
           {activeTab === 'journey' && (
             <motion.div variants={itemVariants}>
               <JourneyPlanner />
+            </motion.div>
+          )}
+          {activeTab === 'fastest' && (
+            <motion.div variants={itemVariants}>
+              <FastestTransport />
             </motion.div>
           )}
         </motion.div>

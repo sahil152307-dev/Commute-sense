@@ -143,3 +143,57 @@ Stage Summary:
 - crowd-monitor.tsx replaced with user-provided code (942 lines)
 - Key changes in new code: higher people velocity (0.015/0.01 vs previous 0.003/0.002), 4 zones defined proportionally, animated bus with approach/stop/depart/phases, detailed MSRTC-style bus rendering
 - No compilation errors, page renders correctly
+
+---
+Task ID: 4-a
+Agent: Main Agent
+Task: Create /api/v1/fastest-transport API endpoint for alternative transport options
+
+Work Log:
+- Read worklog.md and mock-data.ts to understand existing data structures (stations, routes, vehicles, etaData)
+- Read existing API route (eta/route.ts) for code pattern reference
+- Created /home/z/my-project/src/app/api/v1/fastest-transport/route.ts
+- Implemented Haversine distance calculation between lat/lng coordinates
+- Implemented destination resolution: uses query param if provided, otherwise picks next station on a serving route
+- Bus ETA calculated from road distance / avg bus speed (20 km/h) × congestion × peak × weather × random variation
+- 5 transport modes generated: Metro (45 km/h), Auto Rickshaw (25 km/h), E-Rickshaw (15 km/h), Cab/Ola/Uber (30 km/h), Walking (4.5 km/h)
+- Mumbai-realistic pricing: Metro 10-40 INR, Auto 25 base + 15/km, E-Rickshaw 10-30 INR, Cab 80 base + 18/km, Walking 0 INR
+- All data slightly randomized per call (randFloat/randInt) to simulate real-time changes
+- Results sorted by ETA ascending; fastest non-walking option marked recommended: true
+- busAvailable = false when bus ETA > 15 min; aggressive suggestion text in that case
+- Error handling: 400 for missing stationId, 404 for invalid stationId
+- Verified: ST_01 → Bandra Terminus (Metro 16min recommended), ST_01+destination=IT Park (Metro 14min), ST_10 → Mulund West, error cases
+- 0 lint errors, all API responses verified
+
+Stage Summary:
+- New GET endpoint at /api/v1/fastest-transport?stationId=ST_01[&destination=...]
+- Returns from, to, busAvailable, busEtaMinutes, busDelayReason, transports[], suggestion
+- 5 transport modes with realistic Mumbai pricing, sorted by ETA, fastest recommended
+- Proper error handling (400/404), randomized per-call data, uses existing mock-data imports
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix bus direction, add boarding animation, weather API, fastest transport feature
+
+Work Log:
+- Fixed CRLF line endings in crowd-monitor.tsx (sed -i 's/\r$//')
+- Flipped bus orientation: windshield, mirror, indicator moved from LEFT to RIGHT (direction of travel)
+- Tail/brake lights moved from RIGHT to LEFT (back of bus)
+- Destination sign repositioned to front/right portion of bus
+- Door moved to RIGHT side (curb side) with open/closed states and step visual
+- Added Person.boarding and Person.boarded fields for boarding state tracking
+- Implemented boarding animation: when bus stops, 4 people from nearby zones walk toward door and disappear (boarded)
+- When bus departs, boarded people respawn in their original zones
+- Updated weather API to include live/source fields and cache fallback responses
+- Updated ETA engine weather card to show LIVE (green) or ESTIMATED (amber) badge
+- Created /api/v1/fastest-transport API route (via subagent) with 5 transport modes and realistic Mumbai pricing
+- Created fastest-transport.tsx component with bus status alert, transport cards, FASTEST badge
+- Added 'Fastest Transport' tab to commuter view with Zap icon
+- Fixed weather fallback caching to prevent API 401 log spam
+
+Stage Summary:
+- Bus now faces correct direction (front=right when moving left-to-right)
+- Boarding animation works: people queue and board when bus stops
+- Weather shows ESTIMATED badge (API key invalid - will show LIVE with valid key)
+- New Fastest Transport portal with Metro, Auto, E-Rickshaw, Cab, Walking options
+- All changes compile cleanly, lint passes, browser-verified

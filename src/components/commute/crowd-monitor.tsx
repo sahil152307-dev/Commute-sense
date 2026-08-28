@@ -29,6 +29,8 @@ interface Person {
   bodyH: number;
   bodyW: number;
   zoneIndex: number; // which zone this person belongs to
+  boarding: boolean;
+  boarded: boolean;
 }
 
 // ---------- Zone definitions (proportional) ----------
@@ -67,6 +69,8 @@ function generatePeople(count: number, canvasW: number, canvasH: number): Person
       bodyH: bh,
       bodyW: bw,
       zoneIndex,
+      boarding: false,
+      boarded: false,
     });
   }
   return people;
@@ -118,6 +122,8 @@ export function CrowdMonitor() {
   const detectionTimerRef = useRef(0);
   const busStartTimeRef = useRef(Date.now());
   const wheelAngleRef = useRef(0);
+  const doorPosRef = useRef<{x:number;y:number}|null>(null);
+  const boardingInitRef = useRef(false);
 
   // Refs for animation loop
   const activeCrowdRef = useRef(crowdData[0]);
@@ -413,10 +419,17 @@ export function CrowdMonitor() {
       ctx.fillStyle = '#8b1a1a';
       ctx.fillRect(busX, busY + busH * 0.55, busW, busH * 0.08);
 
-      // Windows
+      // Destination sign (front/right side)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(busX + busW * 0.38, busY + 4, busW * 0.58, 12);
+      ctx.font = 'bold 8px monospace';
+      ctx.fillStyle = '#f5c518';
+      ctx.fillText(crowd.stopName.toUpperCase(), busX + busW * 0.41, busY + 13);
+
+      // Windows (center of bus body)
       ctx.fillStyle = '#2a3a5c';
-      const winStartX = busX + busW * 0.2;
-      const winW = busW * 0.1;
+      const winStartX = busX + busW * 0.08;
+      const winW = busW * 0.10;
       const winH = busH * 0.55;
       const winY = busY + busH * 0.12;
       for (let i = 0; i < 5; i++) {
@@ -429,51 +442,44 @@ export function CrowdMonitor() {
         ctx.fillStyle = '#2a3a5c';
       }
 
-      // Windshield
+      // Windshield (RIGHT side = FRONT, bus moves left-to-right)
       ctx.fillStyle = '#1e3050';
       ctx.beginPath();
-      ctx.roundRect(busX + busW * 0.04, winY, busW * 0.13, winH, 2);
+      ctx.roundRect(busX + busW * 0.84, winY, busW * 0.13, winH, 2);
       ctx.fill();
       ctx.strokeStyle = '#c9a20d';
       ctx.lineWidth = 0.8;
       ctx.stroke();
 
-      // Side mirror
+      // Side mirror (RIGHT side = front)
       ctx.strokeStyle = '#333';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(busX, busY + busH * 0.22);
-      ctx.lineTo(busX - 12, busY + busH * 0.18);
+      ctx.moveTo(busX + busW, busY + busH * 0.22);
+      ctx.lineTo(busX + busW + 12, busY + busH * 0.18);
       ctx.stroke();
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(busX - 15, busY + busH * 0.12, 10, 8);
+      ctx.fillRect(busX + busW + 5, busY + busH * 0.12, 10, 8);
       ctx.fillStyle = 'rgba(100,140,180,0.5)';
-      ctx.fillRect(busX - 14, busY + busH * 0.13, 8, 6);
+      ctx.fillRect(busX + busW + 6, busY + busH * 0.13, 8, 6);
 
-      // Front indicator light
+      // Front indicator light (RIGHT = front)
       ctx.fillStyle = '#f5a623';
-      ctx.fillRect(busX, busY + busH * 0.7, 4, 5);
+      ctx.fillRect(busX + busW - 4, busY + busH * 0.7, 4, 5);
 
-      // Brake lights (glow when stopped)
+      // Tail/brake lights (LEFT = back of bus)
       if (busStopped) {
         ctx.fillStyle = '#ff2020';
         ctx.shadowColor = '#ff2020';
         ctx.shadowBlur = 6;
-        ctx.fillRect(busX + busW - 4, busY + busH * 0.65, 4, 6);
-        ctx.fillRect(busX + busW - 4, busY + busH * 0.8, 4, 6);
+        ctx.fillRect(busX, busY + busH * 0.65, 4, 6);
+        ctx.fillRect(busX, busY + busH * 0.8, 4, 6);
         ctx.shadowBlur = 0;
       } else {
         ctx.fillStyle = '#8b0000';
-        ctx.fillRect(busX + busW - 4, busY + busH * 0.65, 4, 6);
-        ctx.fillRect(busX + busW - 4, busY + busH * 0.8, 4, 6);
+        ctx.fillRect(busX, busY + busH * 0.65, 4, 6);
+        ctx.fillRect(busX, busY + busH * 0.8, 4, 6);
       }
-
-      // Destination sign
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(busX + 6, busY + 4, busW * 0.5, 12);
-      ctx.font = 'bold 8px monospace';
-      ctx.fillStyle = '#f5c518';
-      ctx.fillText(crowd.stopName.toUpperCase(), busX + 10, busY + 13);
 
       // Wheels with rotation spokes
       const wheelCenters = [
@@ -503,15 +509,21 @@ export function CrowdMonitor() {
         }
       }
 
-      // Door indicator when stopped
+      // Door (RIGHT side near front - curb side)
+      const doorX = busX + busW * 0.76;
+      const doorY = busY + busH * 0.28;
+      const doorW = busW * 0.05;
+      const doorH = busH * 0.67;
       if (busStopped) {
-        // Open door visual (gap in bus body near front)
-        const doorX = busX + busW * 0.12;
-        const doorY = busY + busH * 0.35;
-        const doorW = busW * 0.06;
-        const doorH = busH * 0.6;
+        // Open door - dark interior visible
         ctx.fillStyle = '#1a1a2a';
         ctx.fillRect(doorX, doorY, doorW, doorH);
+        ctx.strokeStyle = 'rgba(200,180,50,0.6)';
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(doorX, doorY, doorW, doorH);
+        // Step/stair visible
+        ctx.fillStyle = '#3a3a4a';
+        ctx.fillRect(doorX, doorY + doorH - 4, doorW, 4);
         // "STOP" indicator above bus
         ctx.fillStyle = 'rgba(239,68,68,0.85)';
         ctx.font = 'bold 9px monospace';
@@ -522,12 +534,78 @@ export function CrowdMonitor() {
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.fillText(stopLabel, busX + busW / 2 - slW / 2 + 5, busY - 8);
+        // Store door world position for boarding
+        doorPosRef.current = { x: doorX + doorW / 2, y: doorY + doorH };
+      } else {
+        // Closed door
+        ctx.fillStyle = '#e0b015';
+        ctx.fillRect(doorX, doorY, doorW, doorH);
+        ctx.strokeStyle = '#c9a20d';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(doorX, doorY, doorW, doorH);
+        doorPosRef.current = null;
+        boardingInitRef.current = false;
       }
     }
 
-    // ===== MOVE PEOPLE (zone-locked) =====
+    // ===== MOVE PEOPLE (zone-locked + boarding) =====
     const people = peopleRef.current;
+    const doorPos = doorPosRef.current;
+
+    // Initialize boarding: when bus just stopped, pick some people to board
+    if (busStopped && doorPos && !boardingInitRef.current) {
+      boardingInitRef.current = true;
+      // Reset all boarding/boarded states first
+      for (const p of people) {
+        p.boarding = false;
+        p.boarded = false;
+      }
+      // Pick up to 4 people from the closest zones (A & B near shelter)
+      const candidates = people.filter(p => p.zoneIndex <= 1 && !p.boarded);
+      const count = Math.min(candidates.length, 4);
+      const shuffled = candidates.sort(() => Math.random() - 0.5);
+      for (let i = 0; i < count; i++) {
+        shuffled[i].boarding = true;
+      }
+    }
+
+    // Reset boarding when bus leaves
+    if (!busStopped) {
+      for (const p of people) {
+        if (p.boarded) {
+          p.boarded = false;
+          p.boarding = false;
+          const zd = ZONE_DEFS[p.zoneIndex];
+          p.x = zd.xMin * W + Math.random() * (zd.xMax - zd.xMin) * W;
+          p.y = zd.yMin * H + Math.random() * (zd.yMax - zd.yMin) * H;
+        }
+      }
+    }
+
     const updated = people.map((p) => {
+      // Skip boarded people (invisible, inside bus)
+      if (p.boarded) return p;
+
+      // Boarding people: move toward door
+      if (p.boarding && doorPos) {
+        const targetX = doorPos.x + (p.id % 3) * 12 - 12; // slight spread
+        const targetY = doorPos.y + 2;
+        const dx = targetX - p.x;
+        const dy = targetY - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 3) {
+          // Reached the door - board the bus
+          return { ...p, boarded: true, boarding: false, x: targetX, y: targetY };
+        }
+        const speed = 0.8;
+        return {
+          ...p,
+          x: p.x + (dx / dist) * speed,
+          y: p.y + (dy / dist) * speed,
+        };
+      }
+
+      // Normal zone-locked movement
       const zd = ZONE_DEFS[p.zoneIndex];
       const zoneXMin = zd.xMin * W;
       const zoneXMax = zd.xMax * W;
@@ -543,7 +621,7 @@ export function CrowdMonitor() {
       if (nx < zoneXMin || nx > zoneXMax) nvx *= -1;
       if (ny < zoneYMin || ny > zoneYMax) nvy *= -1;
 
-      // Slight random direction change (very subtle)
+      // Slight random direction change
       if (Math.random() < 0.003) {
         nvx = (Math.random() - 0.5) * 0.015;
         nvy = (Math.random() - 0.5) * 0.01;
@@ -558,8 +636,8 @@ export function CrowdMonitor() {
     peopleRef.current = updated;
 
     // ===== DRAW PEOPLE + BOUNDING BOXES (sorted by Y - painter's algorithm) =====
-    const sortedPeople = [...updated].sort((a, b) => a.y - b.y);
-    for (const p of sortedPeople) {
+    const visiblePeople = [...updated].filter(p => !p.boarded).sort((a, b) => a.y - b.y);
+    for (const p of visiblePeople) {
       const boxPad = 8;
       const bx = p.x - p.bodyW / 2 - boxPad;
       const by = p.y - p.bodyH - 10 - boxPad;
