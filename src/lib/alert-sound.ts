@@ -1,5 +1,5 @@
 // ============================================
-// CommuteIQ - Alert Sound System
+// CommuteSense - Alert Sound System
 // Web Audio API based emergency alert sounds
 // No external audio files needed
 // ============================================

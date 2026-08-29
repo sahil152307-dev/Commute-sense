@@ -22,9 +22,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CommuteIQ — Smart Urban Transit Intelligence",
-  description: "AI-Powered Smart Transit System for SIH 2026. Computer vision crowd analytics, predictive ETA, multi-modal routing, fleet dispatching, and driver safety monitoring.",
-  keywords: ["CommuteIQ", "SIH 2026", "Smart Transit", "AI Transportation", "Fleet Management"],
+  title: "CommuteSense — Smart Urban Transit Intelligence",
+  description: "AI-Powered Smart Transit System. Computer vision crowd analytics, predictive ETA, multi-modal routing, fleet dispatching, and driver safety monitoring.",
+  keywords: ["CommuteSense", "Smart Transit", "AI Transportation", "Fleet Management"],
   icons: {
     icon: "/logo.svg",
   },

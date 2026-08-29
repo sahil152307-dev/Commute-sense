@@ -103,7 +103,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               <Bus className="h-7 w-7 text-teal-400" />
             </div>
             <h1 className="font-heading mt-3 text-2xl font-extrabold tracking-[-0.03em]">
-              Commute<span className="text-teal-400">IQ</span>
+              Commute<span className="text-teal-400">Sense</span>
             </h1>
             <p className="font-body mt-1.5 text-[13px] font-light text-muted-foreground/70">
               Smart Urban Transit Intelligence
@@ -299,7 +299,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
                 <div className="mt-5 flex items-center justify-center gap-2 text-[10px] text-muted-foreground/40">
                   <Activity className="h-3 w-3" />
-                  <span>SIH 2026 · Problem #26205</span>
+                  <span>Smart Urban Transit System</span>
                 </div>
               </CardContent>
             </Card>
@@ -312,7 +312,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div className="flex items-center gap-2">
             <Bus className="h-3.5 w-3.5 text-teal-500/50" />
             <span className="font-body text-xs font-light text-muted-foreground">
-              Commute<span className="text-teal-500/70">IQ</span> — Smart Urban Transit Intelligence
+              Commute<span className="text-teal-500/70">Sense</span> — Smart Urban Transit Intelligence
             </span>
           </div>
         </div>

@@ -59,7 +59,7 @@ export default function Home() {
           </div>
           <div className="text-center">
             <h1 className="font-heading text-xl font-extrabold tracking-[-0.03em]">
-              Commute<span className="text-teal-400">IQ</span>
+              Commute<span className="text-teal-400">Sense</span>
             </h1>
             <p className="font-body text-[13px] font-light text-muted-foreground">Initializing...</p>
           </div>
@@ -82,7 +82,7 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1">
+      <main className="flex-1 pb-4">
         <AnimatePresence mode="wait">
           <motion.div
             key={view}
@@ -101,7 +101,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <Bus className="h-3.5 w-3.5 text-teal-500/50" />
             <span className="font-body text-xs font-light text-muted-foreground">
-              Commute<span className="text-teal-500/70">IQ</span> — Smart Urban Transit Intelligence
+              Commute<span className="text-teal-500/70">Sense</span> — Smart Urban Transit Intelligence
             </span>
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
@@ -127,7 +127,7 @@ export default function Home() {
             </div>
           </div>
           <div className="text-[10px] text-muted-foreground/50">
-            SIH 2026 • Problem #26205
+            Smart Urban Transit System
           </div>
         </div>
       </footer>

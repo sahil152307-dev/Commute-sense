@@ -1,6 +1,6 @@
 // ============================================
-// CommuteIQ - Mock Data Store
-// Pre-seeded data for hackathon prototype
+// CommuteSense - Mock Data Store
+// Pre-seeded transit data for prototype
 // ============================================
 
 export interface Stop {

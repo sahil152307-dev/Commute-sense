@@ -63,10 +63,10 @@ export function Header({ view, onViewChange, userName, onLogout }: HeaderProps) 
           </motion.div>
           <div className="min-w-0">
             <h1 className="font-heading text-[15px] sm:text-lg font-extrabold tracking-[-0.02em] truncate">
-              Commute<span className="text-teal-400">IQ</span>
+              Commute<span className="text-teal-400">Sense</span>
             </h1>
             <p className="hidden text-[10px] font-normal leading-tight tracking-wide uppercase text-muted-foreground/60 sm:block">
-              SIH 2026 &middot; Smart Transit Intelligence
+              Smart Transit Intelligence
             </p>
           </div>
         </div>
