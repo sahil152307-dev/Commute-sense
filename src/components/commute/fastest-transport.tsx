@@ -244,7 +244,7 @@ export function FastestTransport() {
         <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
           {/* From */}
           <div className="flex-1 min-w-0">
-            <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+            <label className="font-body text-[11px] font-normal text-muted-foreground mb-1 block flex items-center gap-1">
               <MapPin className="size-3 text-teal-400" />
               From
             </label>
@@ -279,7 +279,7 @@ export function FastestTransport() {
 
           {/* To */}
           <div className="flex-1 min-w-0">
-            <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+            <label className="font-body text-[11px] font-normal text-muted-foreground mb-1 block flex items-center gap-1">
               <Navigation className="size-3 text-amber-400" />
               To
             </label>
@@ -384,7 +384,7 @@ export function FastestTransport() {
 
           {/* Transport Options Grid */}
           <div>
-            <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+            <h3 className="font-heading text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-1.5">
               <Navigation className="size-3.5 text-teal-400" />
               Alternative Transport Options
             </h3>

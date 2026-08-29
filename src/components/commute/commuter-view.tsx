@@ -43,8 +43,8 @@ export function CommuterView() {
         className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
       >
         <div>
-          <h2 className="text-xl font-bold tracking-tight">Commuter Dashboard</h2>
-          <p className="text-sm text-muted-foreground">Real-time transit intelligence for your journey</p>
+          <h2 className="font-heading text-xl sm:text-2xl font-extrabold tracking-[-0.025em]">Commuter Dashboard</h2>
+          <p className="font-body text-[13px] font-normal text-muted-foreground/80">Real-time transit intelligence for your journey</p>
         </div>
         <div className="flex gap-0.5 sm:gap-1 rounded-lg border border-white/5 bg-white/[0.02] p-0.5 overflow-x-auto">
           {tabs.map((tab) => (

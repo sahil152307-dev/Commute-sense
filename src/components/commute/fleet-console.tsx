@@ -267,7 +267,7 @@ export function FleetConsole() {
                 <Card className={isOvercrowded ? 'border-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.25)]' : 'border-border'}>
                   <CardHeader className="pb-0">
                     <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-semibold leading-tight">
+                      <CardTitle className="font-heading text-sm font-semibold leading-tight">
                         <span className="mr-2 inline-block size-2.5 rounded-full" style={{ backgroundColor: route.routeColor }} />
                         {route.routeName}
                       </CardTitle>
@@ -300,11 +300,11 @@ export function FleetConsole() {
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base"><Send className="size-4 text-teal-400" />Quick Re-Route</CardTitle>
+              <CardTitle className="font-heading flex items-center gap-2 text-base"><Send className="size-4 text-teal-400" />Quick Re-Route</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Available Vehicles</p>
+                <p className="font-body text-[11px] font-normal uppercase tracking-wider text-muted-foreground">Available Vehicles</p>
                 <ScrollArea className="max-h-32">
                   <div className="space-y-1.5 pr-2">
                     {idleVehicles.length === 0 ? <p className="text-xs text-muted-foreground italic py-2">No idle vehicles</p> : idleVehicles.map(v => (
@@ -317,7 +317,7 @@ export function FleetConsole() {
                 </ScrollArea>
               </div>
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Target Route</p>
+                <p className="font-body text-[11px] font-normal uppercase tracking-wider text-muted-foreground">Target Route</p>
                 <Select value={selectedRoute} onValueChange={setSelectedRoute}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Select overcrowded route…" /></SelectTrigger>
                   <SelectContent>
@@ -334,7 +334,7 @@ export function FleetConsole() {
           </Card>
           <Card>
             <CardContent className="pt-6 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground"><Gauge className="size-3" />Fleet Summary</div>
+              <div className="flex items-center gap-2 font-body text-[11px] font-normal uppercase tracking-wider text-muted-foreground"><Gauge className="size-3" />Fleet Summary</div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-center"><p className="text-lg font-bold text-teal-400 tabular-nums">{routeStatuses.reduce((s, r) => s + r.vehicleCount, 0) + idleVehicles.length}</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p></div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-center"><p className="text-lg font-bold text-amber-400 tabular-nums">{idleVehicles.length}</p><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Idle</p></div>
@@ -349,7 +349,7 @@ export function FleetConsole() {
       {/* Alerts feed */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="font-heading flex items-center gap-2 text-base">
             <Radio className="size-4 text-amber-400" />Live Alerts Feed
             <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-muted-foreground"><Activity className="size-3 text-green-400" />Auto-refresh 8s</span>
           </CardTitle>

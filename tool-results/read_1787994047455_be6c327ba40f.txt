@@ -1,0 +1,841 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useCallback, useMemo } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Activity,
+     7→  AlertTriangle,
+     8→  CircleStop,
+     9→  ChevronDown,
+    10→  Clock,
+    11→  Eye,
+    12→  Fuel,
+    13→  Gauge,
+    14→  ShieldAlert,
+    15→  Zap,
+    16→} from 'lucide-react';
+    17→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    18→import { Badge } from '@/components/ui/badge';
+    19→import {
+    20→  Select,
+    21→  SelectContent,
+    22→  SelectItem,
+    23→  SelectTrigger,
+    24→  SelectValue,
+    25→} from '@/components/ui/select';
+    26→import { ScrollArea } from '@/components/ui/scroll-area';
+    27→import type { TelematicsData } from '@/lib/mock-data';
+    28→import { telematicsData as mockTelematics } from '@/lib/mock-data';
+    29→
+    30→// ─── Color Helpers ───────────────────────────────────────────────────────────
+    31→
+    32→const TEAL = '#14b8a6';
+    33→const AMBER = '#f59e0b';
+    34→const RED = '#ef4444';
+    35→const GREEN = '#22c55e';
+    36→
+    37→function speedColor(speed: number): string {
+    38→  if (speed < 40) return GREEN;
+    39→  if (speed <= 55) return AMBER;
+    40→  return RED;
+    41→}
+    42→
+    43→function stabilityColor(score: number): string {
+    44→  if (score >= 80) return GREEN;
+    45→  if (score >= 60) return AMBER;
+    46→  return RED;
+    47→}
+    48→
+    49→function earColor(ear: number): string {
+    50→  if (ear >= 0.3) return GREEN;
+    51→  if (ear >= 0.2) return AMBER;
+    52→  return RED;
+    53→}
+    54→
+    55→// ─── SVG Gauge Helpers ───────────────────────────────────────────────────────
+    56→
+    57→function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
+    58→  const start = polarToCartesian(cx, cy, r, endAngle);
+    59→  const end = polarToCartesian(cx, cy, r, startAngle);
+    60→  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+    61→  return ['M', start.x, start.y, 'A', r, r, 0, largeArcFlag, 0, end.x, end.y].join(' ');
+    62→}
+    63→
+    64→function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+    65→  const rad = ((angleDeg - 90) * Math.PI) / 180;
+    66→  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    67→}
+    68→
+    69→// ─── Speed Gauge (Semi-circle) ───────────────────────────────────────────────
+    70→
+    71→function SpeedGauge({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
+    72→  const cx = 80;
+    73→  const cy = 80;
+    74→  const r = 62;
+    75→  const maxGauge = 80;
+    76→  const angle = Math.min((speed / maxGauge) * 180, 180);
+    77→  const color = speedColor(speed);
+    78→
+    79→  // Max speed marker position
+    80→  const maxAngle = Math.min((maxSpeed / maxGauge) * 180, 180);
+    81→  const maxPos = polarToCartesian(cx, cy, r - 8, 180 + (maxAngle - 180));
+    82→  const maxPosOuter = polarToCartesian(cx, cy, r + 4, 180 + (maxAngle - 180));
+    83→
+    84→  return (
+    85→    <div className="flex flex-col items-center gap-1">
+    86→      <svg width="160" height="100" viewBox="0 0 160 100">
+    87→        {/* Background arc */}
+    88→        <path
+    89→          d={describeArc(cx, cy, r, 180, 360)}
+    90→          fill="none"
+    91→          stroke="oklch(0.25 0.01 260)"
+    92→          strokeWidth="12"
+    93→          strokeLinecap="round"
+    94→        />
+    95→        {/* Value arc */}
+    96→        <motion.path
+    97→          d={describeArc(cx, cy, r, 180, 180 + angle)}
+    98→          fill="none"
+    99→          stroke={color}
+   100→          strokeWidth="12"
+   101→          strokeLinecap="round"
+   102→          initial={{ pathLength: 0 }}
+   103→          animate={{ pathLength: 1 }}
+   104→          transition={{ duration: 0.8, ease: 'easeOut' }}
+   105→        />
+   106→        {/* Max speed marker */}
+   107→        <line
+   108→          x1={maxPos.x}
+   109→          y1={maxPos.y}
+   110→          x2={maxPosOuter.x}
+   111→          y2={maxPosOuter.y}
+   112→          stroke={RED}
+   113→          strokeWidth="2"
+   114→          strokeLinecap="round"
+   115→          opacity="0.8"
+   116→        />
+   117→        {/* Tick marks */}
+   118→        {[0, 20, 40, 60, 80].map((tick) => {
+   119→          const tAngle = Math.min((tick / maxGauge) * 180, 180);
+   120→          const inner = polarToCartesian(cx, cy, r - 18, 180 + (tAngle > 0 ? tAngle : 0));
+   121→          const outer = polarToCartesian(cx, cy, r - 14, 180 + (tAngle > 0 ? tAngle : 0));
+   122→          return (
+   123→            <line
+   124→              key={tick}
+   125→              x1={inner.x}
+   126→              y1={inner.y}
+   127→              x2={outer.x}
+   128→              y2={outer.y}
+   129→              stroke="oklch(0.5 0 0)"
+   130→              strokeWidth="1.5"
+   131→            />
+   132→          );
+   133→        })}
+   134→        {/* Center text */}
+   135→        <text x={cx} y={cy - 2} textAnchor="middle" fill={color} fontSize="28" fontWeight="bold">
+   136→          {Math.round(speed)}
+   137→        </text>
+   138→        <text x={cx} y={cy + 16} textAnchor="middle" fill="oklch(0.6 0 0)" fontSize="11">
+   139→          km/h
+   140→        </text>
+   141→      </svg>
+   142→      <div className="text-xs text-muted-foreground flex items-center gap-1">
+   143→        <Gauge className="size-3" /> Speed
+   144→      </div>
+   145→      <div className="text-[10px] text-muted-foreground/60">Max: {maxSpeed} km/h</div>
+   146→    </div>
+   147→  );
+   148→}
+   149→
+   150→// ─── Stability Gauge (Full ring) ─────────────────────────────────────────────
+   151→
+   152→function StabilityGauge({ score }: { score: number }) {
+   153→  const cx = 70;
+   154→  const cy = 70;
+   155→  const r = 52;
+   156→  const circumference = 2 * Math.PI * r;
+   157→  const dashOffset = circumference - (score / 100) * circumference;
+   158→  const color = stabilityColor(score);
+   159→
+   160→  return (
+   161→    <div className="flex flex-col items-center gap-1">
+   162→      <svg width="140" height="140" viewBox="0 0 140 140">
+   163→        <circle
+   164→          cx={cx}
+   165→          cy={cy}
+   166→          r={r}
+   167→          fill="none"
+   168→          stroke="oklch(0.25 0.01 260)"
+   169→          strokeWidth="10"
+   170→        />
+   171→        <motion.circle
+   172→          cx={cx}
+   173→          cy={cy}
+   174→          r={r}
+   175→          fill="none"
+   176→          stroke={color}
+   177→          strokeWidth="10"
+   178→          strokeLinecap="round"
+   179→          strokeDasharray={circumference}
+   180→          initial={{ strokeDashoffset: circumference }}
+   181→          animate={{ strokeDashoffset: dashOffset }}
+   182→          transition={{ duration: 1, ease: 'easeOut' }}
+   183→          transform={`rotate(-90 ${cx} ${cy})`}
+   184→        />
+   185→        <text x={cx} y={cy - 4} textAnchor="middle" fill={color} fontSize="26" fontWeight="bold">
+   186→          {score}%
+   187→        </text>
+   188→        <text x={cx} y={cy + 14} textAnchor="middle" fill="oklch(0.6 0 0)" fontSize="10">
+   189→          Stability
+   190→        </text>
+   191→      </svg>
+   192→      <div className="text-xs text-muted-foreground flex items-center gap-1">
+   193→        <Activity className="size-3" /> Stability Score
+   194→      </div>
+   195→    </div>
+   196→  );
+   197→}
+   198→
+   199→// ─── EAR Gauge (Circular 0-0.5) ──────────────────────────────────────────────
+   200→
+   201→function EarGauge({ ear }: { ear: number }) {
+   202→  const cx = 70;
+   203→  const cy = 70;
+   204→  const r = 52;
+   205→  const circumference = 2 * Math.PI * r;
+   206→  const ratio = Math.min(ear / 0.5, 1);
+   207→  const dashOffset = circumference - ratio * circumference;
+   208→  const color = earColor(ear);
+   209→
+   210→  return (
+   211→    <div className="flex flex-col items-center gap-1">
+   212→      <svg width="140" height="140" viewBox="0 0 140 140">
+   213→        <circle
+   214→          cx={cx}
+   215→          cy={cy}
+   216→          r={r}
+   217→          fill="none"
+   218→          stroke="oklch(0.25 0.01 260)"
+   219→          strokeWidth="10"
+   220→        />
+   221→        <motion.circle
+   222→          cx={cx}
+   223→          cy={cy}
+   224→          r={r}
+   225→          fill="none"
+   226→          stroke={color}
+   227→          strokeWidth="10"
+   228→          strokeLinecap="round"
+   229→          strokeDasharray={circumference}
+   230→          initial={{ strokeDashoffset: circumference }}
+   231→          animate={{ strokeDashoffset: dashOffset }}
+   232→          transition={{ duration: 0.8, ease: 'easeOut' }}
+   233→          transform={`rotate(-90 ${cx} ${cy})`}
+   234→        />
+   235→        {/* Eye icon in center */}
+   236→        <g transform={`translate(${cx - 14}, ${cy - 22})`}>
+   237→          <Eye className="size-7" stroke={color} fill="none" strokeWidth={1.8} />
+   238→        </g>
+   239→        <text x={cx} y={cy + 16} textAnchor="middle" fill={color} fontSize="22" fontWeight="bold">
+   240→          {ear.toFixed(2)}
+   241→        </text>
+   242→        <text x={cx} y={cy + 30} textAnchor="middle" fill="oklch(0.6 0 0)" fontSize="10">
+   243→          EAR Ratio
+   244→        </text>
+   245→      </svg>
+   246→      <div className="text-xs text-muted-foreground">
+   247→        {ear < 0.2 ? 'DANGER' : ear < 0.3 ? 'WARNING' : 'SAFE'}
+   248→      </div>
+   249→    </div>
+   250→  );
+   251→}
+   252→
+   253→// ─── Metric Card ─────────────────────────────────────────────────────────────
+   254→
+   255→function MetricCard({
+   256→  icon: Icon,
+   257→  label,
+   258→  value,
+   259→  unit,
+   260→  color,
+   261→  alert,
+   262→}: {
+   263→  icon: React.ElementType;
+   264→  label: string;
+   265→  value: string | number;
+   266→  unit: string;
+   267→  color: string;
+   268→  alert?: boolean;
+   269→}) {
+   270→  return (
+   271→    <motion.div
+   272→      initial={{ opacity: 0, y: 10 }}
+   273→      animate={{ opacity: 1, y: 0 }}
+   274→      transition={{ duration: 0.3 }}
+   275→      className={`rounded-lg border p-4 ${
+   276→        alert ? 'border-red-500/40 bg-red-500/5' : 'border-border bg-card'
+   277→      }`}
+   278→    >
+   279→      <div className="flex items-center gap-2 mb-2">
+   280→        <div
+   281→          className="rounded-md p-1.5"
+   282→          style={{ backgroundColor: `${color}15` }}
+   283→        >
+   284→          <Icon className="size-4" style={{ color }} />
+   285→        </div>
+   286→        <span className="text-xs text-muted-foreground">{label}</span>
+   287→        {alert && (
+   288→          <Badge className="ml-auto bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
+   289→            <AlertTriangle className="size-2.5" />
+   290→            Alert
+   291→          </Badge>
+   292→        )}
+   293→      </div>
+   294→      <div className="flex items-baseline gap-1">
+   295→        <span className="text-2xl font-bold" style={{ color }}>
+   296→          {value}
+   297→        </span>
+   298→        <span className="text-xs text-muted-foreground">{unit}</span>
+   299→      </div>
+   300→    </motion.div>
+   301→  );
+   302→}
+   303→
+   304→// ─── Speed History Sparkline ─────────────────────────────────────────────────
+   305→
+   306→function SpeedChart({ currentSpeed }: { currentSpeed: number }) {
+   307→  const points = useMemo(() => {
+   308→    const data: number[] = [];
+   309→    for (let i = 0; i < 20; i++) {
+   310→      const variation = (Math.random() - 0.5) * 16;
+   311→      data.push(Math.max(0, Math.min(80, currentSpeed + variation)));
+   312→    }
+   313→    // Ensure last point is close to current
+   314→    data[19] = currentSpeed;
+   315→    return data;
+   316→  }, [currentSpeed]);
+   317→
+   318→  const width = 320;
+   319→  const height = 80;
+   320→  const padding = 4;
+   321→  const maxVal = Math.max(...points, 1);
+   322→
+   323→  const xStep = (width - padding * 2) / (points.length - 1);
+   324→
+   325→  const coords = points.map((p, i) => ({
+   326→    x: padding + i * xStep,
+   327→    y: height - padding - (p / maxVal) * (height - padding * 2),
+   328→  }));
+   329→
+   330→  // Smooth curve using cardinal spline-like approach (quadratic bezier through midpoints)
+   331→  let smoothPath = `M ${coords[0].x} ${coords[0].y}`;
+   332→  for (let i = 0; i < coords.length - 1; i++) {
+   333→    const cp1x = (coords[i].x + coords[i + 1].x) / 2;
+   334→    const cp1y = coords[i].y;
+   335→    const cp2x = (coords[i].x + coords[i + 1].x) / 2;
+   336→    const cp2y = coords[i + 1].y;
+   337→    smoothPath += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${coords[i + 1].x} ${coords[i + 1].y}`;
+   338→  }
+   339→
+   340→  const areaPath =
+   341→    smoothPath + ` L ${coords[coords.length - 1].x} ${height} L ${coords[0].x} ${height} Z`;
+   342→
+   343→  const lineColor = speedColor(currentSpeed);
+   344→
+   345→  return (
+   346→    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+   347→      <defs>
+   348→        <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
+   349→          <stop offset="0%" stopColor={lineColor} stopOpacity="0.3" />
+   350→          <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+   351→        </linearGradient>
+   352→      </defs>
+   353→      <motion.path
+   354→        d={areaPath}
+   355→        fill="url(#speedGrad)"
+   356→        initial={{ opacity: 0 }}
+   357→        animate={{ opacity: 1 }}
+   358→        transition={{ duration: 0.5 }}
+   359→      />
+   360→      <motion.path
+   361→        d={smoothPath}
+   362→        fill="none"
+   363→        stroke={lineColor}
+   364→        strokeWidth="2"
+   365→        strokeLinecap="round"
+   366→        initial={{ pathLength: 0 }}
+   367→        animate={{ pathLength: 1 }}
+   368→        transition={{ duration: 1, ease: 'easeOut' }}
+   369→      />
+   370→      {/* End dot */}
+   371→      <motion.circle
+   372→        cx={coords[coords.length - 1].x}
+   373→        cy={coords[coords.length - 1].y}
+   374→        r="3"
+   375→        fill={lineColor}
+   376→        initial={{ scale: 0 }}
+   377→        animate={{ scale: 1 }}
+   378→        transition={{ delay: 0.8, duration: 0.3 }}
+   379→      />
+   380→    </svg>
+   381→  );
+   382→}
+   383→
+   384→// ─── Eye Diagram (Fatigue Simulator) ─────────────────────────────────────────
+   385→
+   386→function EyeDiagram({ ear }: { ear: number }) {
+   387→  // EAR ratio controls eyelid openness: 0 = fully closed, 0.4+ = fully open
+   388→  const openness = Math.min(Math.max(ear / 0.4, 0.05), 1);
+   389→  const isDanger = ear < 0.2;
+   390→
+   391→  // Eye geometry
+   392→  const eyeW = 60;
+   393→  const eyeH = 22 * openness;
+   394→  const leftEyeCx = 85;
+   395→  const rightEyeCx = 215;
+   396→  const eyeCy = 75;
+   397→
+   398→  // Eyelid (upper) position - moves down when drowsy
+   399→  const eyelidY = eyeCy - eyeH;
+   400→  const eyeColor = isDanger ? RED : ear < 0.3 ? AMBER : GREEN;
+   401→
+   402→  return (
+   403→    <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/60 border border-border">
+   404→      {/* Scanline effect */}
+   405→      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+   406→        <div className="absolute inset-x-0 h-8 bg-gradient-to-b from-teal-500/5 to-transparent animate-scanline" />
+   407→      </div>
+   408→
+   409→      {/* Camera overlay text */}
+   410→      <div className="absolute top-2 left-3 flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+   411→        <div className="size-1.5 rounded-full bg-red-500 animate-pulse" />
+   412→        REC • DRV-CAM-01
+   413→      </div>
+   414→      <div className="absolute top-2 right-3 text-[10px] text-muted-foreground/40">
+   415→        {new Date().toLocaleTimeString()}
+   416→      </div>
+   417→
+   418→      {/* Face outline */}
+   419→      <svg
+   420→        viewBox="0 0 300 150"
+   421→        className="w-full h-full"
+   422→        preserveAspectRatio="xMidYMid meet"
+   423→      >
+   424→        {/* Face oval */}
+   425→        <ellipse
+   426→          cx="150"
+   427→          cy="80"
+   428→          rx="90"
+   429→          ry="55"
+   430→          fill="none"
+   431→          stroke="oklch(0.35 0 0)"
+   432→          strokeWidth="1"
+   433→          strokeDasharray="3 3"
+   434→          opacity="0.5"
+   435→        />
+   436→
+   437→        {/* Left eye - white sclera */}
+   438→        <ellipse
+   439→          cx={leftEyeCx}
+   440→          cy={eyeCy}
+   441→          rx={eyeW / 2}
+   442→          ry={Math.max(eyeH, 3)}
+   443→          fill="oklch(0.3 0.01 260)"
+   444→          stroke={eyeColor}
+   445→          strokeWidth="1.5"
+   446→        />
+   447→        {/* Left iris */}
+   448→        <circle
+   449→          cx={leftEyeCx}
+   450→          cy={eyeCy}
+   451→          r={8 * openness + 3}
+   452→          fill={eyeColor}
+   453→          opacity="0.7"
+   454→        />
+   455→        {/* Left pupil */}
+   456→        <circle cx={leftEyeCx} cy={eyeCy} r={3} fill={eyeColor} />
+   457→        {/* Left upper eyelid */}
+   458→        <path
+   459→          d={`M ${leftEyeCx - eyeW / 2 - 4} ${eyelidY} Q ${leftEyeCx} ${eyelidY - 6} ${leftEyeCx + eyeW / 2 + 4} ${eyelidY}`}
+   460→          fill="oklch(0.2 0.01 260)"
+   461→          stroke="oklch(0.35 0 0)"
+   462→          strokeWidth="1.5"
+   463→        />
+   464→
+   465→        {/* Right eye - white sclera */}
+   466→        <ellipse
+   467→          cx={rightEyeCx}
+   468→          cy={eyeCy}
+   469→          rx={eyeW / 2}
+   470→          ry={Math.max(eyeH, 3)}
+   471→          fill="oklch(0.3 0.01 260)"
+   472→          stroke={eyeColor}
+   473→          strokeWidth="1.5"
+   474→        />
+   475→        {/* Right iris */}
+   476→        <circle
+   477→          cx={rightEyeCx}
+   478→          cy={eyeCy}
+   479→          r={8 * openness + 3}
+   480→          fill={eyeColor}
+   481→          opacity="0.7"
+   482→        />
+   483→        {/* Right pupil */}
+   484→        <circle cx={rightEyeCx} cy={eyeCy} r={3} fill={eyeColor} />
+   485→        {/* Right upper eyelid */}
+   486→        <path
+   487→          d={`M ${rightEyeCx - eyeW / 2 - 4} ${eyelidY} Q ${rightEyeCx} ${eyelidY - 6} ${rightEyeCx + eyeW / 2 + 4} ${eyelidY}`}
+   488→          fill="oklch(0.2 0.01 260)"
+   489→          stroke="oklch(0.35 0 0)"
+   490→          strokeWidth="1.5"
+   491→        />
+   492→
+   493→        {/* Nose hint */}
+   494→        <path
+   495→          d="M 147 88 L 150 100 L 153 88"
+   496→          fill="none"
+   497→          stroke="oklch(0.35 0 0)"
+   498→          strokeWidth="1"
+   499→          opacity="0.4"
+   500→        />
+   501→
+   502→        {/* Mouth - frown when drowsy */}
+   503→        <path
+   504→          d={isDanger
+   505→            ? 'M 135 118 Q 150 112 165 118'
+   506→            : 'M 135 115 Q 150 120 165 115'
+   507→          }
+   508→          fill="none"
+   509→          stroke="oklch(0.35 0 0)"
+   510→          strokeWidth="1.2"
+   511→          opacity="0.5"
+   512→        />
+   513→
+   514→        {/* Detection bounding box */}
+   515→        <rect
+   516→          x="35"
+   517→          y="20"
+   518→          width="230"
+   519→          height="120"
+   520→          fill="none"
+   521→          stroke={eyeColor}
+   522→          strokeWidth="1"
+   523→          strokeDasharray="6 3"
+   524→          opacity="0.3"
+   525→          rx="4"
+   526→        />
+   527→        <text
+   528→          x="40"
+   529→          y="18"
+   530→          fill={eyeColor}
+   531→          fontSize="8"
+   532→          opacity="0.6"
+   533→        >
+   534→          FACE DETECTED
+   535→        </text>
+   536→      </svg>
+   537→
+   538→      {/* EAR value overlay */}
+   539→      <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
+   540→        <div className="flex items-center gap-1.5">
+   541→          <Eye className="size-3" style={{ color: eyeColor }} />
+   542→          <span className="text-[10px]" style={{ color: eyeColor }}>
+   543→            EAR: {ear.toFixed(2)}
+   544→          </span>
+   545→        </div>
+   546→        <Badge
+   547→          className={`text-[9px] ${
+   548→            isDanger
+   549→              ? 'bg-red-500/20 text-red-400 border-red-500/30'
+   550→              : ear < 0.3
+   551→                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+   552→                : 'bg-green-500/20 text-green-400 border-green-500/30'
+   553→          }`}
+   554→        >
+   555→          {isDanger ? 'DROWSY' : ear < 0.3 ? 'SLEEPY' : 'ALERT'}
+   556→        </Badge>
+   557→      </div>
+   558→    </div>
+   559→  );
+   560→}
+   561→
+   562→// ─── Trip Duration Calculator ────────────────────────────────────────────────
+   563→
+   564→function calcTripDuration(timestamp: string): string {
+   565→  const now = Date.now();
+   566→  const then = new Date(timestamp).getTime();
+   567→  const diffMs = Math.abs(now - then);
+   568→  const hours = Math.floor(diffMs / 3600000);
+   569→  const minutes = Math.floor((diffMs % 3600000) / 60000);
+   570→  if (hours > 0) return `${hours}h ${minutes}m`;
+   571→  return `${minutes}m`;
+   572→}
+   573→
+   574→// ─── Main Component ──────────────────────────────────────────────────────────
+   575→
+   576→export function DriverTelematics() {
+   577→  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+   578→  const [data, setData] = useState<TelematicsData[]>(mockTelematics);
+   579→  const [currentTime, setCurrentTime] = useState(Date.now());
+   580→
+   581→  const selectedDriver = useMemo(
+   582→    () => data.find((d) => d.vehicleId === selectedVehicleId),
+   583→    [data, selectedVehicleId]
+   584→  );
+   585→
+   586→  const isDrowsy = useMemo(
+   587→    () =>
+   588→      !!selectedDriver &&
+   589→      (selectedDriver.drowsinessFlag || selectedDriver.earRatio < 0.2),
+   590→    [selectedDriver]
+   591→  );
+   592→
+   593→  // Auto-select first driver on mount
+   594→  useEffect(() => {
+   595→    if (data.length > 0 && !selectedVehicleId) {
+   596→      setSelectedVehicleId(data[0].vehicleId);
+   597→    }
+   598→  }, [data, selectedVehicleId]);
+   599→
+   600→  // Poll API every 3 seconds
+   601→  useEffect(() => {
+   602→    const interval = setInterval(async () => {
+   603→      try {
+   604→        const res = await fetch(`/api/v1/telematics?vehicleId=${selectedVehicleId}`);
+   605→        if (res.ok) {
+   606→          const json = await res.json();
+   607→          if (json?.data) {
+   608→            // Update the specific driver data in state
+   609→            setData((prev) =>
+   610→              prev.map((d) => (d.vehicleId === selectedVehicleId ? { ...d, ...json.data } : d))
+   611→            );
+   612→          }
+   613→        }
+   614→      } catch {
+   615→        // Fallback: simulate slight random variations locally
+   616→        setData((prev) =>
+   617→          prev.map((d) => {
+   618→            if (d.vehicleId !== selectedVehicleId) return d;
+   619→            return {
+   620→              ...d,
+   621→              speedKmph: Math.max(0, Math.min(80, d.speedKmph + (Math.random() - 0.5) * 6)),
+   622→              earRatio: Math.max(0.05, Math.min(0.45, d.earRatio + (Math.random() - 0.5) * 0.03)),
+   623→              stabilityScore: Math.max(20, Math.min(100, d.stabilityScore + (Math.random() - 0.5) * 3)),
+   624→              timestamp: new Date().toISOString(),
+   625→            };
+   626→          })
+   627→        );
+   628→      }
+   629→      setCurrentTime(Date.now());
+   630→    }, 3000);
+   631→
+   632→    return () => clearInterval(interval);
+   633→  }, [selectedVehicleId]);
+   634→
+   635→  // Re-key for speed chart on speed change
+   636→  const speedChartKey = selectedDriver ? Math.round(selectedDriver.speedKmph / 5) : 0;
+   637→
+   638→  return (
+   639→    <ScrollArea className="h-full">
+   640→      <div className="p-4 lg:p-6 space-y-5">
+   641→        {/* Header + Selector */}
+   642→        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+   643→          <div>
+   644→            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+   645→              <ShieldAlert className="size-5" style={{ color: TEAL }} />
+   646→              Driver Telematics & Drowsiness Alert
+   647→            </h2>
+   648→            <p className="text-xs text-muted-foreground mt-0.5">
+   649→              Edge-AI real-time driver monitoring system
+   650→            </p>
+   651→          </div>
+   652→          <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+   653→            <SelectTrigger className="w-full sm:w-[280px]">
+   654→              <SelectValue placeholder="Select driver..." />
+   655→            </SelectTrigger>
+   656→            <SelectContent>
+   657→              {data.map((d) => (
+   658→                <SelectItem key={d.vehicleId} value={d.vehicleId}>
+   659→                  <span className="flex items-center gap-2">
+   660→                    <span
+   661→                      className="size-2 rounded-full"
+   662→                      style={{
+   663→                        backgroundColor: d.drowsinessFlag || d.earRatio < 0.2 ? RED : GREEN,
+   664→                      }}
+   665→                    />
+   666→                    {d.driverName}
+   667→                    <span className="text-muted-foreground text-xs">({d.vehicleId})</span>
+   668→                  </span>
+   669→                </SelectItem>
+   670→              ))}
+   671→            </SelectContent>
+   672→          </Select>
+   673→        </div>
+   674→
+   675→        {/* Drowsiness Alert Banner */}
+   676→        <AnimatePresence>
+   677→          {isDrowsy && selectedDriver && (
+   678→            <motion.div
+   679→              initial={{ opacity: 0, height: 0 }}
+   680→              animate={{ opacity: 1, height: 'auto' }}
+   681→              exit={{ opacity: 0, height: 0 }}
+   682→              transition={{ duration: 0.3 }}
+   683→            >
+   684→              <div className="animate-pulse-alert rounded-lg border-2 border-red-500/60 bg-red-600 px-5 py-4 text-white shadow-lg shadow-red-500/20">
+   685→                <div className="flex items-start gap-3">
+   686→                  <AlertTriangle className="size-7 mt-0.5 shrink-0" />
+   687→                  <div className="flex-1 min-w-0">
+   688→                    <div className="text-lg font-bold tracking-wide">
+   689→                      🚨 DROWSINESS ALERT
+   690→                    </div>
+   691→                    <div className="text-sm mt-1 opacity-95">
+   692→                      Driver <span className="font-semibold">{selectedDriver.driverName}</span> ({selectedDriver.vehicleId}) is showing signs of drowsiness.
+   693→                    </div>
+   694→                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs opacity-80">
+   695→                      <span>
+   696→                        EAR Ratio: <span className="font-bold text-white">{selectedDriver.earRatio.toFixed(2)}</span>
+   697→                      </span>
+   698→                      <span className="text-red-200">•</span>
+   699→                      <span>
+   700→                        Stability: <span className="font-bold text-white">{selectedDriver.stabilityScore}%</span>
+   701→                      </span>
+   702→                      <span className="text-red-200">•</span>
+   703→                      <span>
+   704→                        Speed: <span className="font-bold text-white">{Math.round(selectedDriver.speedKmph)} km/h</span>
+   705→                      </span>
+   706→                    </div>
+   707→                    <div className="mt-2 text-xs font-medium bg-red-500/30 rounded px-2.5 py-1 inline-block">
+   708→                      ⚠️ Immediate intervention recommended — Alert dispatched to fleet supervisor
+   709→                    </div>
+   710→                  </div>
+   711→                </div>
+   712→              </div>
+   713→            </motion.div>
+   714→          )}
+   715→        </AnimatePresence>
+   716→
+   717→        {/* Gauges Row */}
+   718→        {selectedDriver && (
+   719→          <motion.div
+   720→            key="gauges"
+   721→            initial={{ opacity: 0, y: 12 }}
+   722→            animate={{ opacity: 1, y: 0 }}
+   723→            transition={{ duration: 0.4, delay: 0.1 }}
+   724→          >
+   725→            <Card className="py-4">
+   726→              <CardContent>
+   727→                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+   728→                  <SpeedGauge
+   729→                    speed={selectedDriver.speedKmph}
+   730→                    maxSpeed={selectedDriver.maxSpeed}
+   731→                  />
+   732→                  <StabilityGauge score={selectedDriver.stabilityScore} />
+   733→                  <EarGauge ear={selectedDriver.earRatio} />
+   734→                </div>
+   735→              </CardContent>
+   736→            </Card>
+   737→          </motion.div>
+   738→        )}
+   739→
+   740→        {/* Metrics Grid (2x2) */}
+   741→        {selectedDriver && (
+   742→          <motion.div
+   743→            key="metrics"
+   744→            initial={{ opacity: 0, y: 12 }}
+   745→            animate={{ opacity: 1, y: 0 }}
+   746→            transition={{ duration: 0.4, delay: 0.2 }}
+   747→            className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+   748→          >
+   749→            <MetricCard
+   750→              icon={CircleStop}
+   751→              label="Harsh Braking"
+   752→              value={selectedDriver.harshBrakingEvents}
+   753→              unit="events"
+   754→              color={selectedDriver.harshBrakingEvents > 2 ? RED : TEAL}
+   755→              alert={selectedDriver.harshBrakingEvents > 2}
+   756→            />
+   757→            <MetricCard
+   758→              icon={Zap}
+   759→              label="Harsh Acceleration"
+   760→              value={selectedDriver.harshAccelerationEvents}
+   761→              unit="events"
+   762→              color={selectedDriver.harshAccelerationEvents > 1 ? AMBER : TEAL}
+   763→              alert={selectedDriver.harshAccelerationEvents > 1}
+   764→            />
+   765→            <MetricCard
+   766→              icon={Fuel}
+   767→              label="Fuel Efficiency"
+   768→              value={selectedDriver.fuelEfficiency.toFixed(1)}
+   769→              unit="km/L"
+   770→              color={selectedDriver.fuelEfficiency > 8 ? GREEN : AMBER}
+   771→            />
+   772→            <MetricCard
+   773→              icon={Clock}
+   774→              label="Trip Duration"
+   775→              value={calcTripDuration(selectedDriver.timestamp)}
+   776→              unit=""
+   777→              color={TEAL}
+   778→            />
+   779→          </motion.div>
+   780→        )}
+   781→
+   782→        {/* Speed History + Fatigue Simulator Row */}
+   783→        {selectedDriver && (
+   784→          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+   785→            {/* Speed History Chart */}
+   786→            <motion.div
+   787→              key="speed-chart"
+   788→              initial={{ opacity: 0, y: 12 }}
+   789→              animate={{ opacity: 1, y: 0 }}
+   790→              transition={{ duration: 0.4, delay: 0.3 }}
+   791→            >
+   792→              <Card className="py-4">
+   793→                <CardHeader className="pb-0">
+   794→                  <CardTitle className="text-sm flex items-center gap-2">
+   795→                    <Activity className="size-4" style={{ color: TEAL }} />
+   796→                    Speed History (Live)
+   797→                  </CardTitle>
+   798→                </CardHeader>
+   799→                <CardContent>
+   800→                  <SpeedChart key={speedChartKey} currentSpeed={selectedDriver.speedKmph} />
+   801→                  <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground/60">
+   802→                    <span>-40s</span>
+   803→                    <span className="flex items-center gap-1">
+   804→                      <span className="size-1.5 rounded-full" style={{ backgroundColor: speedColor(selectedDriver.speedKmph) }} />
+   805→                      {Math.round(selectedDriver.speedKmph)} km/h current
+   806→                    </span>
+   807→                    <span>now</span>
+   808→                  </div>
+   809→                </CardContent>
+   810→              </Card>
+   811→            </motion.div>
+   812→
+   813→            {/* Driver Fatigue Simulator */}
+   814→            <motion.div
+   815→              key="fatigue-sim"
+   816→              initial={{ opacity: 0, y: 12 }}
+   817→              animate={{ opacity: 1, y: 0 }}
+   818→              transition={{ duration: 0.4, delay: 0.4 }}
+   819→            >
+   820→              <Card className="py-4">
+   821→                <CardHeader className="pb-0">
+   822→                  <CardTitle className="text-sm flex items-center gap-2">
+   823→                    <Eye className="size-4" style={{ color: isDrowsy ? RED : TEAL }} />
+   824→                    Driver Fatigue Simulator
+   825→                  </CardTitle>
+   826→                </CardHeader>
+   827→                <CardContent>
+   828→                  <EyeDiagram ear={selectedDriver.earRatio} />
+   829→                  <div className="mt-2 text-[10px] text-muted-foreground/50 text-center">
+   830→                    Simulated driver camera view • EAR-based eyelid tracking
+   831→                  </div>
+   832→                </CardContent>
+   833→              </Card>
+   834→            </motion.div>
+   835→          </div>
+   836→        )}
+   837→      </div>
+   838→    </ScrollArea>
+   839→  );
+   840→}
+   841→

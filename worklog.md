@@ -276,3 +276,32 @@ Stage Summary:
 - Fastest Transport now has proper From/To station selectors with all locations visible
 - Mobile responsive across all views (375px iPhone tested)
 - User menu dropdown with sign out in header
+
+---
+Task ID: 8
+Agent: Main Orchestrator
+Task: Change typography to look less AI-generated
+
+Work Log:
+- Replaced Geist font (default Next.js template font — #1 AI tell) with Plus Jakarta Sans (headings) + Inter (body) + JetBrains Mono (data)
+- Updated layout.tsx: imported Plus_Jakarta_Sans, Inter, JetBrains_Mono from next/font/google with display: swap
+- Updated globals.css: --font-sans mapped to --font-jakarta, added --font-body mapped to --font-inter, --font-mono mapped to --font-jetbrains
+- Added base layer styles: body uses Inter, h1-h6 use Plus Jakarta Sans, .font-heading and .font-body utility classes
+- Updated header.tsx: brand name uses font-heading + font-extrabold + tracking-[-0.02em], subtitle uppercase tracking-wide, badge labels font-normal
+- Updated commuter-view.tsx: heading uses font-heading + font-extrabold + tracking-[-0.025em], subtitle uses font-body + font-light
+- Updated admin-view.tsx: same heading/subtitle pattern
+- Updated login-page.tsx: brand heading font-heading + font-extrabold + tracking-[-0.03em], subtitle font-body + font-light
+- Updated page.tsx: splash screen and footer text use font-body + font-light
+- Updated 7 sub-components (22 edits total): crowd-monitor, journey-planner, fastest-transport, fleet-console, driver-telematics, emergency-panel, city-map
+- Added font-heading to all h2/h3/CardTitle headings
+- Added font-body to labels, subtitles, and data text
+- Varied typography: section labels use uppercase tracking-wider, some labels font-normal instead of always font-medium
+- Verified via Agent Browser: h1 = Plus Jakarta Sans, body = Inter, JetBrains Mono available
+- Lint passes with 0 errors
+
+Stage Summary:
+- Font family changed from Geist (AI template default) to Plus Jakarta Sans + Inter + JetBrains Mono
+- Headings use Plus Jakarta Sans with extrabold weight and tight tracking
+- Body text uses Inter with lighter weights for natural feel
+- Section labels vary: some uppercase tracking-wider, some normal weight
+- 22 surgical typography edits across 10 files, no layout/color/logic changes

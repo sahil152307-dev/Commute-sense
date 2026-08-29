@@ -779,9 +779,9 @@ export function CrowdMonitor() {
               <div className="flex items-center justify-center size-7 rounded-md bg-emerald-500/15">
                 <Eye className="size-4 text-emerald-400" />
               </div>
-              <span className="text-sm font-semibold text-white/90">
+              <span className="font-heading text-sm font-semibold text-white/90">
                 Passenger Density <span className="text-white/40 font-normal">·</span>{' '}
-                <span className="text-white/50 font-medium">Computer Vision</span>
+                <span className="font-body text-white/50 font-normal">Computer Vision</span>
               </span>
             </div>
 

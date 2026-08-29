@@ -192,7 +192,7 @@ export function ETAEngine() {
               <div className="flex items-center gap-3">
                 <label
                   htmlFor="station-select"
-                  className="text-sm font-medium text-muted-foreground whitespace-nowrap"
+                  className="text-[11px] font-normal uppercase tracking-wider text-muted-foreground whitespace-nowrap"
                 >
                   Station
                 </label>
@@ -244,8 +244,8 @@ export function ETAEngine() {
                             <Cloud className="size-5 text-teal-400" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-muted-foreground font-medium">
-                              Weather{etaData.weather.city ? ` - ${etaData.weather.city}` : ''}
+                            <p className="font-body text-xs text-muted-foreground">
+                              Weather{etaData.weather.city ? ` — ${etaData.weather.city}` : ''}
                             </p>
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-semibold text-foreground truncate">
@@ -320,7 +320,7 @@ export function ETAEngine() {
                   {/* ---- Route ETA Cards ---- */}
                   {etaData.routes.length > 0 && (
                     <div>
-                      <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+                      <h3 className="font-heading text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-1.5">
                         <Bus className="size-3.5 text-teal-400" />
                         Arriving Routes at {etaData.stationName}
                       </h3>

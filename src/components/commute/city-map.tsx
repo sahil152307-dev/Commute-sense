@@ -327,10 +327,10 @@ export function CityMap({ onStationClick }: CityMapProps) {
                   </TooltipTrigger>
                   <TooltipContent side="top" className="bg-gray-900 border border-gray-700 text-gray-100 shadow-xl">
                     <div className="flex flex-col gap-1 min-w-0">
-                      <span className="font-semibold text-xs leading-tight">{node.name}</span>
-                      <span className="text-[10px] text-gray-400 capitalize">{node.type}</span>
+                      <span className="font-body font-semibold text-xs leading-tight">{node.name}</span>
+                      <span className="font-body text-[10px] text-gray-400 capitalize">{node.type}</span>
                       {crowd ? (
-                        <span className="text-[11px]">
+                        <span className="font-body text-[11px]">
                           Crowd:{' '}
                           <span className={crowd.densityStatus === 'HIGH' ? 'text-red-400 font-semibold' : crowd.densityStatus === 'MODERATE' ? 'text-amber-400 font-medium' : 'text-green-400 font-medium'}>
                             {crowd.currentCount}
@@ -338,7 +338,7 @@ export function CityMap({ onStationClick }: CityMapProps) {
                           <span className="text-gray-500 ml-1">({crowd.densityStatus})</span>
                         </span>
                       ) : (
-                        <span className="text-[10px] text-gray-500">No crowd data</span>
+                        <span className="font-body text-[10px] text-gray-500">No crowd data</span>
                       )}
                     </div>
                   </TooltipContent>

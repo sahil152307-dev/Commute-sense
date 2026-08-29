@@ -62,11 +62,11 @@ export function Header({ view, onViewChange, userName, onLogout }: HeaderProps) 
             <Bus className="h-4 w-4 sm:h-5 sm:w-5 text-teal-400" />
           </motion.div>
           <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-bold tracking-tight truncate">
+            <h1 className="font-heading text-[15px] sm:text-lg font-extrabold tracking-[-0.02em] truncate">
               Commute<span className="text-teal-400">IQ</span>
             </h1>
-            <p className="hidden text-[10px] leading-none text-muted-foreground sm:block">
-              SIH 2026 • Smart Transit Intelligence
+            <p className="hidden text-[10px] font-normal leading-tight tracking-wide uppercase text-muted-foreground/60 sm:block">
+              SIH 2026 &middot; Smart Transit Intelligence
             </p>
           </div>
         </div>
@@ -81,7 +81,7 @@ export function Header({ view, onViewChange, userName, onLogout }: HeaderProps) 
                 className="flex items-center gap-1.5 rounded-full border border-white/5 bg-white/[0.02] px-2.5 py-1"
               >
                 <Icon className={cn('h-3 w-3', item.color)} />
-                <span className="text-[11px] font-medium text-muted-foreground">
+                <span className="text-[11px] font-normal text-muted-foreground">
                   {item.label}
                 </span>
               </div>

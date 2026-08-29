@@ -58,10 +58,10 @@ export default function Home() {
             <Bus className="h-6 w-6 text-teal-400" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold">
+            <h1 className="font-heading text-xl font-extrabold tracking-[-0.03em]">
               Commute<span className="text-teal-400">IQ</span>
             </h1>
-            <p className="text-sm text-muted-foreground">Initializing...</p>
+            <p className="font-body text-[13px] font-light text-muted-foreground">Initializing...</p>
           </div>
         </motion.div>
       </div>
@@ -100,7 +100,7 @@ export default function Home() {
         <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-2 px-4 py-3 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
             <Bus className="h-3.5 w-3.5 text-teal-500/50" />
-            <span className="text-xs text-muted-foreground">
+            <span className="font-body text-xs font-light text-muted-foreground">
               Commute<span className="text-teal-500/70">IQ</span> — Smart Urban Transit Intelligence
             </span>
           </div>

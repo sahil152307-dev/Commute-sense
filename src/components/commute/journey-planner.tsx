@@ -353,7 +353,7 @@ export function JourneyPlanner() {
       >
         <Card className="border-border/60">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-foreground">
+            <CardTitle className="font-heading text-lg text-foreground">
               <MapPin className="mr-1.5 inline size-4 text-teal-400" />
               Home – Sector 7
               <ArrowRight className="mx-2 inline size-3.5 text-muted-foreground" />
@@ -422,7 +422,7 @@ export function JourneyPlanner() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5, duration: 0.4 }}
       >
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <h3 className="mb-4 flex items-center gap-2 font-heading text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
           <Ticket className="size-4" />
           Journey Steps
         </h3>
@@ -447,7 +447,7 @@ export function JourneyPlanner() {
         <Card className="border-border/60">
           <CardContent className="flex items-center justify-between py-5">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="font-body text-[11px] font-normal uppercase tracking-wider text-muted-foreground">
                 Total Fare
               </p>
               <p className="mt-1 text-3xl font-bold text-foreground">

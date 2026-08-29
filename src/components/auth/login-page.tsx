@@ -102,10 +102,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-500/10 ring-1 ring-teal-500/25">
               <Bus className="h-7 w-7 text-teal-400" />
             </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight">
+            <h1 className="font-heading mt-3 text-2xl font-extrabold tracking-[-0.03em]">
               Commute<span className="text-teal-400">IQ</span>
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="font-body mt-1.5 text-[13px] font-light text-muted-foreground/70">
               Smart Urban Transit Intelligence
             </p>
           </motion.div>
@@ -311,7 +311,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <div className="mx-auto flex max-w-[1600px] items-center justify-center px-4 py-3">
           <div className="flex items-center gap-2">
             <Bus className="h-3.5 w-3.5 text-teal-500/50" />
-            <span className="text-xs text-muted-foreground">
+            <span className="font-body text-xs font-light text-muted-foreground">
               Commute<span className="text-teal-500/70">IQ</span> — Smart Urban Transit Intelligence
             </span>
           </div>

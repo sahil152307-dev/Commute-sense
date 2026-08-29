@@ -137,7 +137,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
       {/* Emergency Events Card */}
       <Card className="border-red-500/20 relative overflow-hidden">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+          <CardTitle className="font-heading flex items-center gap-2 text-sm sm:text-base">
             <AlertTriangle className="size-4 text-red-400" />
             <span>Emergency Dispatch</span>
             {activeEmergencies.length > 0 && (
@@ -253,7 +253,7 @@ export function EmergencyPanel({ emergencies, setEmergencies, dispatchedEmergenc
             <Card className="border-teal-500/30">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
+                  <CardTitle className="font-heading flex items-center gap-2 text-base">
                     <Navigation className="size-4 text-teal-400" />
                     Safest Route to {selectedEmergency.stopName}
                   </CardTitle>

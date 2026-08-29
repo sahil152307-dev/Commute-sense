@@ -641,11 +641,11 @@ export function DriverTelematics() {
         {/* Header + Selector */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <h2 className="font-heading text-lg font-semibold text-foreground flex items-center gap-2">
               <ShieldAlert className="size-5" style={{ color: TEAL }} />
               Driver Telematics & Drowsiness Alert
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="font-body text-[13px] font-normal text-muted-foreground/80 mt-0.5">
               Edge-AI real-time driver monitoring system
             </p>
           </div>
@@ -791,7 +791,7 @@ export function DriverTelematics() {
             >
               <Card className="py-4">
                 <CardHeader className="pb-0">
-                  <CardTitle className="text-sm flex items-center gap-2">
+                  <CardTitle className="font-heading text-sm flex items-center gap-2">
                     <Activity className="size-4" style={{ color: TEAL }} />
                     Speed History (Live)
                   </CardTitle>
@@ -819,7 +819,7 @@ export function DriverTelematics() {
             >
               <Card className="py-4">
                 <CardHeader className="pb-0">
-                  <CardTitle className="text-sm flex items-center gap-2">
+                  <CardTitle className="font-heading text-sm flex items-center gap-2">
                     <Eye className="size-4" style={{ color: isDrowsy ? RED : TEAL }} />
                     Driver Fatigue Simulator
                   </CardTitle>
