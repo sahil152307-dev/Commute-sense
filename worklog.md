@@ -251,3 +251,28 @@ Stage Summary:
 - CCTV layout fixed: shelter + people on platform (bottom), bus on road (left), no overlap
 - Blank screen bug eliminated (canvas guard + stable ResizeObserver)
 - Boarding animation now clearly visible with green highlights
+
+---
+Task ID: 7
+Agent: Main Orchestrator
+Task: Add login/signup page, fix fastest transport from/to, make mobile responsive, fix bugs
+
+Work Log:
+- Updated Prisma schema: added `password` and `role` fields to User model, pushed to DB
+- Created `/api/auth/register` route with bcryptjs password hashing
+- Created `/api/auth/login` route with bcryptjs password comparison
+- Created `/api/auth/me` route for user validation
+- Created `/components/auth/login-page.tsx`: Full login/signup page with animated tab toggle, form validation, error handling, show/hide password
+- Updated `page.tsx`: Added auth state management with localStorage persistence, shows login page if not authenticated, passes user info to Header
+- Updated `header.tsx`: Added user avatar dropdown with sign out, responsive sizing (smaller on mobile), feature badges hidden below xl breakpoint
+- Fixed fastest-transport.tsx: Added proper "To" station Select dropdown (previously was static text), swap button between From/To, passes `destination` query param to API, available stations filter out selected "From" station, shows all 15 locations with icons
+- Fixed commuter-view.tsx tabs: overflow-x-auto for mobile, whitespace-nowrap shrink-0, responsive padding
+- Fixed admin-view.tsx tabs: Same responsive fixes
+- Installed bcryptjs + @types/bcryptjs
+- All lint errors fixed (react-hooks/set-state-in-effect removed via lazy initializer)
+
+Stage Summary:
+- Login/Signup working with DB-backed auth (Prisma + bcryptjs)
+- Fastest Transport now has proper From/To station selectors with all locations visible
+- Mobile responsive across all views (375px iPhone tested)
+- User menu dropdown with sign out in header

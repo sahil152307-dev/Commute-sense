@@ -42,13 +42,13 @@ export function AdminView() {
           <h2 className="text-lg sm:text-xl font-bold tracking-tight">Admin Control Center</h2>
           <p className="text-sm text-muted-foreground">Fleet operations & safety monitoring</p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.02] p-1">
+        <div className="flex gap-0.5 sm:gap-1 rounded-lg border border-white/5 bg-white/[0.02] p-0.5 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'relative flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all',
+                'relative flex items-center gap-1.5 sm:gap-2 rounded-md px-2.5 sm:px-3 py-1.5 sm:py-2 text-sm font-medium transition-all whitespace-nowrap shrink-0',
                 activeTab === tab.id
                   ? 'text-teal-400'
                   : 'text-muted-foreground hover:text-foreground'

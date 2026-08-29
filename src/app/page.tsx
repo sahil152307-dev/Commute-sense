@@ -5,7 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/commute/header';
 import { CommuterView } from '@/components/commute/commuter-view';
 import { AdminView } from '@/components/commute/admin-view';
+import { LoginPage } from '@/components/auth/login-page';
 import { Bus, Shield, Brain, Route, Zap, Activity } from 'lucide-react';
+
+interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+}
 
 const emptySubscribe = () => () => {};
 function useMounted() {
@@ -13,9 +21,31 @@ function useMounted() {
 }
 
 export default function Home() {
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem('commuteiq_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.id) return parsed;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
   const [view, setView] = useState<'commuter' | 'admin'>('commuter');
   const mounted = useMounted();
 
+  const handleLogin = (u: AuthUser) => {
+    setUser(u);
+    localStorage.setItem('commuteiq_user', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('commuteiq_user');
+  };
+
+  // Show loading splash during SSR/hydration
   if (!mounted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -38,9 +68,19 @@ export default function Home() {
     );
   }
 
+  // Show login page if not authenticated
+  if (!user) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header view={view} onViewChange={setView} />
+      <Header
+        view={view}
+        onViewChange={setView}
+        userName={user.name || user.email}
+        onLogout={handleLogout}
+      />
 
       <main className="flex-1">
         <AnimatePresence mode="wait">
@@ -56,7 +96,6 @@ export default function Home() {
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
       <footer className="mt-auto border-t border-white/5 bg-background/50 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-2 px-4 py-3 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
@@ -65,26 +104,26 @@ export default function Home() {
               Commute<span className="text-teal-500/70">IQ</span> — Smart Urban Transit Intelligence
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div className="flex items-center gap-1.5">
               <Brain className="h-3 w-3 text-teal-500/40" />
-              <span className="text-[10px] text-muted-foreground/60">CV Analytics</span>
+              <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">CV Analytics</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Route className="h-3 w-3 text-amber-500/40" />
-              <span className="text-[10px] text-muted-foreground/60">Smart ETA</span>
+              <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">Smart ETA</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Zap className="h-3 w-3 text-purple-500/40" />
-              <span className="text-[10px] text-muted-foreground/60">AI Routing</span>
+              <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">AI Routing</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Shield className="h-3 w-3 text-emerald-500/40" />
-              <span className="text-[10px] text-muted-foreground/60">Fleet AI</span>
+              <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">Fleet AI</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Activity className="h-3 w-3 text-rose-500/40" />
-              <span className="text-[10px] text-muted-foreground/60">Telematics</span>
+              <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">Telematics</span>
             </div>
           </div>
           <div className="text-[10px] text-muted-foreground/50">

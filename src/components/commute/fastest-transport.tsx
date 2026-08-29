@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   Star,
   Navigation,
-  ChevronDown,
+  SwapIcon,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { stations } from '@/lib/mock-data';
 
 // ---- Types ----
@@ -131,7 +132,7 @@ function TransportCard({ option, index }: { option: TransportOption; index: numb
 
           {/* Stats row */}
           <div className="flex items-center justify-between pl-0 sm:pl-12 gap-3">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <div className="flex items-center gap-1.5">
                 <Clock className="size-3.5 text-muted-foreground" />
                 <motion.span
@@ -155,7 +156,7 @@ function TransportCard({ option, index }: { option: TransportOption; index: numb
               </div>
             </div>
             <span className={
-              'text-[10px] px-2 py-0.5 rounded-full border ' +
+              'text-[10px] px-2 py-0.5 rounded-full border shrink-0 ' +
               (option.availability.toLowerCase().includes('available')
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                 : 'bg-amber-500/10 text-amber-400 border-amber-500/20')
@@ -173,17 +174,32 @@ function TransportCard({ option, index }: { option: TransportOption; index: numb
 
 export function FastestTransport() {
   const [fromStation, setFromStation] = useState(stations[0].id);
+  const [toStation, setToStation] = useState('');
   const [data, setData] = useState<FastestTransportResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchTransport = useCallback(async (stationId: string, silent = false) => {
+  // Available "to" stations (exclude selected "from")
+  const availableToStations = stations.filter(s => s.id !== fromStation);
+
+  // Auto-select a sensible "to" station if none selected
+  useEffect(() => {
+    if (!toStation || toStation === fromStation) {
+      // Pick second station from the list
+      const fallback = availableToStations[0];
+      if (fallback) setToStation(fallback.id);
+    }
+  }, [fromStation]);
+
+  const fetchTransport = useCallback(async (fromId: string, toId: string, silent = false) => {
+    if (!toId) return;
     if (!silent) setIsLoading(true);
     else setIsRefreshing(true);
 
     try {
-      const res = await fetch(`/api/v1/fastest-transport?stationId=${stationId}`);
+      const toName = stations.find(s => s.id === toId)?.name || '';
+      const res = await fetch(`/api/v1/fastest-transport?stationId=${fromId}&destination=${encodeURIComponent(toName)}`);
       if (!res.ok) throw new Error('Failed to fetch transport data');
       const result: FastestTransportResponse = await res.json();
       setData(result);
@@ -196,52 +212,108 @@ export function FastestTransport() {
   }, []);
 
   useEffect(() => {
-    fetchTransport(fromStation);
-  }, [fromStation, fetchTransport]);
+ if (toStation) fetchTransport(fromStation, toStation);
+  }, [fromStation, toStation, fetchTransport]);
 
   // Auto-refresh every 8s
   useEffect(() => {
     intervalRef.current = setInterval(() => {
-      fetchTransport(fromStation, true);
+      if (toStation) fetchTransport(fromStation, toStation, true);
     }, 8000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fromStation, fetchTransport]);
+  }, [fromStation, toStation, fetchTransport]);
+
+  const swapStations = () => {
+    const prevFrom = fromStation;
+    const prevTo = toStation;
+    if (prevTo && prevTo !== prevFrom) {
+      setFromStation(prevTo);
+      setToStation(prevFrom);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5 h-full">
-      {/* ---- Header: Station selectors + refresh ---- */}
+      {/* ---- Header: From / To selectors + swap + refresh ---- */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        className="space-y-3"
       >
-        <div className="flex items-center gap-3 flex-wrap">
-          <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">From</label>
-          <Select value={fromStation} onValueChange={setFromStation}>
-            <SelectTrigger className="w-[200px] sm:w-[240px]">
-              <SelectValue placeholder="Select station" />
-            </SelectTrigger>
-            <SelectContent>
-              {stations.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Station selectors row */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
+          {/* From */}
+          <div className="flex-1 min-w-0">
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+              <MapPin className="size-3 text-teal-400" />
+              From
+            </label>
+            <Select value={fromStation} onValueChange={(v) => { setFromStation(v); }}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select origin" />
+              </SelectTrigger>
+              <SelectContent>
+                {stations.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="flex items-center gap-2">
+                      <MapPin className="size-3 text-muted-foreground shrink-0" />
+                      {s.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <ArrowRight className="size-4 text-muted-foreground shrink-0 hidden sm:block" />
+          {/* Swap button */}
+          <div className="flex items-center justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={swapStations}
+              className="h-9 w-9 rounded-full border border-white/10 hover:bg-white/5 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowRight className="size-4 rotate-90 sm:rotate-0" />
+            </Button>
+          </div>
 
-          {data && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">To</span>
-              <span className="text-sm font-semibold text-foreground">{data.to}</span>
-            </div>
-          )}
+          {/* To */}
+          <div className="flex-1 min-w-0">
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+              <Navigation className="size-3 text-amber-400" />
+              To
+            </label>
+            <Select value={toStation} onValueChange={setToStation}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select destination" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableToStations.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="flex items-center gap-2">
+                      <Navigation className="size-3 text-muted-foreground shrink-0" />
+                      {s.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
+        {/* Auto-refresh indicator */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {isRefreshing && <RefreshCw className="size-3.5 animate-spin text-teal-400" />}
           <Navigation className="size-3.5" />
           <span className="text-teal-500 font-medium">Auto-refresh 8s</span>
+          {data && (
+            <span className="text-muted-foreground/50">•</span>
+          )}
+          {data && (
+            <span className="text-muted-foreground/60">
+              {data.from} → {data.to}
+            </span>
+          )}
         </div>
       </motion.div>
 
@@ -253,7 +325,7 @@ export function FastestTransport() {
           {/* Bus Status Alert */}
           <AnimatePresence mode="wait">
             <motion.div
-              key={data.from + data.busAvailable}
+              key={data.from + data.to + data.busAvailable}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -264,7 +336,7 @@ export function FastestTransport() {
                   ? 'border-emerald-500/20 bg-emerald-500/[0.03]'
                   : 'border-red-500/20 bg-red-500/[0.03]')
               }>
-                <CardContent className="p-4">
+                <CardContent className="p-3 sm:p-4">
                   <div className="flex items-start gap-3">
                     <div className={
                       'flex items-center justify-center size-8 rounded-lg shrink-0 ' +
